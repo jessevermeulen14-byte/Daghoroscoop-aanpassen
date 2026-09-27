@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": 3,
+  "version": 4,
   "modelChoice": {
     "highKeywords": [
       "bouw een app",
@@ -17,7 +17,15 @@
       "wat betekent",
       "vertaal dit",
       "kort antwoord"
-    ]
+    ],
+    "priority": [
+      "high",
+      "simple",
+      "thinking"
+    ],
+    "simpleMaxLength": 65,
+    "highMinLength": 450,
+    "highSignalCount": 2
   },
   "picker": {
     "labels": [],
@@ -40,5 +48,45 @@
   "button": {
     "xDp": 12,
     "yDp": 112
+  },
+  "apps": {
+    "chatgpt": {
+      "send": {
+        "labels": [],
+        "resourceIds": []
+      },
+      "picker": {
+        "labels": [],
+        "resourceIds": []
+      }
+    },
+    "claude": {
+      "send": {
+        "labels": [
+          "send message",
+          "send",
+          "verzenden"
+        ],
+        "resourceIds": []
+      },
+      "picker": {
+        "labels": [],
+        "resourceIds": []
+      }
+    },
+    "gemini": {
+      "send": {
+        "labels": [
+          "send message",
+          "send",
+          "verzenden"
+        ],
+        "resourceIds": []
+      },
+      "picker": {
+        "labels": [],
+        "resourceIds": []
+      }
+    }
   }
 }
