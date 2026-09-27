@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": 5,
+  "version": 6,
   "modelChoice": {
     "highKeywords": [
       "bouw een app",
@@ -65,6 +65,12 @@
       "picker": {
         "labels": [],
         "resourceIds": []
+      },
+      "modelPickerEnabled": false,
+      "modelModes": {
+        "instant": [],
+        "thinking": [],
+        "high": []
       }
     },
     "claude": {
@@ -78,6 +84,12 @@
       "picker": {
         "labels": [],
         "resourceIds": []
+      },
+      "modelPickerEnabled": false,
+      "modelModes": {
+        "instant": [],
+        "thinking": [],
+        "high": []
       }
     },
     "gemini": {
@@ -91,6 +103,12 @@
       "picker": {
         "labels": [],
         "resourceIds": []
+      },
+      "modelPickerEnabled": false,
+      "modelModes": {
+        "instant": [],
+        "thinking": [],
+        "high": []
       }
     }
   }
