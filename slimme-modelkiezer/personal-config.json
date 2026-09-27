@@ -1,0 +1,144 @@
+{
+  "schema": 1,
+  "version": 1,
+  "modelChoice": {
+    "highKeywords": [
+      "bouw een app",
+      "uitgebreid juridisch",
+      "complexe architectuur"
+    ],
+    "thinkingKeywords": [
+      "analyseer",
+      "vergelijk",
+      "juridisch",
+      "programmeer"
+    ],
+    "simpleKeywords": [
+      "wat betekent",
+      "vertaal dit",
+      "kort antwoord"
+    ],
+    "priority": [
+      "high",
+      "simple",
+      "thinking"
+    ],
+    "simpleMaxLength": 65,
+    "highMinLength": 450,
+    "highSignalCount": 2
+  },
+  "picker": {
+    "labels": [],
+    "resourceIds": [],
+    "retries": 4,
+    "skipWhenMissing": true,
+    "retryDelayMs": 160
+  },
+  "send": {
+    "labels": [
+      "send message",
+      "send button",
+      "verzenden",
+      "verstuur bericht",
+      "send",
+      "send prompt",
+      "submit",
+      "submit message",
+      "verstuur",
+      "sturen",
+      "bericht sturen",
+      "vraag versturen"
+    ],
+    "resourceIds": [
+      "send",
+      "send_button",
+      "send_message",
+      "send_message_button",
+      "submit",
+      "submit_button"
+    ],
+    "retries": 20,
+    "retryDelayMs": 200
+  },
+  "button": {
+    "xDp": 12,
+    "yDp": 112
+  },
+  "apps": {
+    "chatgpt": {
+      "send": {
+        "labels": [
+          "send message",
+          "send button",
+          "send prompt",
+          "verzenden",
+          "verstuur bericht",
+          "bericht verzenden",
+          "send",
+          "submit",
+          "submit message",
+          "verstuur",
+          "sturen",
+          "bericht sturen",
+          "vraag versturen"
+        ],
+        "resourceIds": [
+          "send",
+          "send_button",
+          "send_message",
+          "send_message_button",
+          "submit",
+          "submit_button"
+        ]
+      },
+      "picker": {
+        "labels": [],
+        "resourceIds": []
+      },
+      "modelPickerEnabled": false,
+      "modelModes": {
+        "instant": [],
+        "thinking": [],
+        "high": []
+      }
+    },
+    "claude": {
+      "send": {
+        "labels": [
+          "send message",
+          "verzenden"
+        ],
+        "resourceIds": []
+      },
+      "picker": {
+        "labels": [],
+        "resourceIds": []
+      },
+      "modelPickerEnabled": false,
+      "modelModes": {
+        "instant": [],
+        "thinking": [],
+        "high": []
+      }
+    },
+    "gemini": {
+      "send": {
+        "labels": [
+          "send message",
+          "verzenden"
+        ],
+        "resourceIds": []
+      },
+      "picker": {
+        "labels": [],
+        "resourceIds": []
+      },
+      "modelPickerEnabled": false,
+      "modelModes": {
+        "instant": [],
+        "thinking": [],
+        "high": []
+      }
+    }
+  }
+}
