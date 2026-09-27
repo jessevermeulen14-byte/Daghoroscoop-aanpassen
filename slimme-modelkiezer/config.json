@@ -52,7 +52,14 @@
   "apps": {
     "chatgpt": {
       "send": {
-        "labels": [],
+        "labels": [
+          "send message",
+          "send button",
+          "send prompt",
+          "verzenden",
+          "verstuur bericht",
+          "bericht verzenden"
+        ],
         "resourceIds": []
       },
       "picker": {
@@ -63,9 +70,11 @@
     "claude": {
       "send": {
         "labels": [
-          "send message",
           "send",
-          "verzenden"
+          "send message",
+          "send prompt",
+          "verzenden",
+          "verstuur"
         ],
         "resourceIds": []
       },
@@ -77,9 +86,11 @@
     "gemini": {
       "send": {
         "labels": [
-          "send message",
           "send",
-          "verzenden"
+          "send message",
+          "send prompt",
+          "verzenden",
+          "verstuur"
         ],
         "resourceIds": []
       },
