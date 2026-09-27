@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": 2,
+  "version": 3,
   "modelChoice": {
     "highKeywords": [
       "bouw een app",
@@ -23,12 +23,22 @@
     "labels": [],
     "resourceIds": [],
     "retries": 4,
-    "skipWhenMissing": true
+    "skipWhenMissing": true,
+    "retryDelayMs": 160
   },
   "send": {
-    "labels": [],
+    "labels": [
+      "send message",
+      "send button",
+      "verzenden",
+      "verstuur bericht"
+    ],
     "resourceIds": [],
     "retries": 8,
     "retryDelayMs": 150
+  },
+  "button": {
+    "xDp": 12,
+    "yDp": 112
   }
 }
