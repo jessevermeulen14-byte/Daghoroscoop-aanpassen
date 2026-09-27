@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": 7,
+  "version": 10,
   "modelChoice": {
     "highKeywords": [
       "bouw een app",
@@ -30,9 +30,9 @@
   "picker": {
     "labels": [],
     "resourceIds": [],
-    "retries": 4,
+    "retries": 1,
     "skipWhenMissing": true,
-    "retryDelayMs": 160
+    "retryDelayMs": 100
   },
   "send": {
     "labels": [
@@ -47,7 +47,14 @@
       "verstuur",
       "sturen",
       "bericht sturen",
-      "vraag versturen"
+      "vraag versturen",
+      "send message button",
+      "send now",
+      "send your message",
+      "verzend bericht",
+      "verzendknop",
+      "verstuur je bericht",
+      "submit prompt"
     ],
     "resourceIds": [
       "send",
@@ -55,14 +62,26 @@
       "send_message",
       "send_message_button",
       "submit",
-      "submit_button"
+      "submit_button",
+      "sendbutton",
+      "sendmessage",
+      "sendmessagebutton",
+      "sendbtn",
+      "send_icon",
+      "sendicon",
+      "send_prompt",
+      "sendprompt"
     ],
     "retries": 20,
-    "retryDelayMs": 200
+    "retryDelayMs": 150
   },
   "button": {
     "xDp": 12,
-    "yDp": 112
+    "yDp": 112,
+    "selectionTimeoutMs": 5000,
+    "cooldownMs": 0,
+    "tapFeedback": true,
+    "interceptNativeSend": false
   },
   "apps": {
     "chatgpt": {
@@ -80,7 +99,14 @@
           "verstuur",
           "sturen",
           "bericht sturen",
-          "vraag versturen"
+          "vraag versturen",
+          "send message button",
+          "send now",
+          "send your message",
+          "verzend bericht",
+          "verzendknop",
+          "verstuur je bericht",
+          "submit prompt"
         ],
         "resourceIds": [
           "send",
@@ -88,7 +114,15 @@
           "send_message",
           "send_message_button",
           "submit",
-          "submit_button"
+          "submit_button",
+          "sendbutton",
+          "sendmessage",
+          "sendmessagebutton",
+          "sendbtn",
+          "send_icon",
+          "sendicon",
+          "send_prompt",
+          "sendprompt"
         ]
       },
       "picker": {
