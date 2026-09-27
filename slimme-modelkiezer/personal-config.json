@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": 11,
+  "version": 12,
   "modelChoice": {
     "highKeywords": [
       "bouw een app",
@@ -77,7 +77,7 @@
   },
   "button": {
     "xDp": 12,
-    "yDp": 180,
+    "yDp": 250,
     "sizeDp": 56,
     "label": "SLIM",
     "tapFeedback": true,
