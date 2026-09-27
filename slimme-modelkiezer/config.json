@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": 6,
+  "version": 7,
   "modelChoice": {
     "highKeywords": [
       "bouw een app",
@@ -39,11 +39,26 @@
       "send message",
       "send button",
       "verzenden",
-      "verstuur bericht"
+      "verstuur bericht",
+      "send",
+      "send prompt",
+      "submit",
+      "submit message",
+      "verstuur",
+      "sturen",
+      "bericht sturen",
+      "vraag versturen"
     ],
-    "resourceIds": [],
-    "retries": 8,
-    "retryDelayMs": 150
+    "resourceIds": [
+      "send",
+      "send_button",
+      "send_message",
+      "send_message_button",
+      "submit",
+      "submit_button"
+    ],
+    "retries": 20,
+    "retryDelayMs": 200
   },
   "button": {
     "xDp": 12,
@@ -58,9 +73,23 @@
           "send prompt",
           "verzenden",
           "verstuur bericht",
-          "bericht verzenden"
+          "bericht verzenden",
+          "send",
+          "submit",
+          "submit message",
+          "verstuur",
+          "sturen",
+          "bericht sturen",
+          "vraag versturen"
         ],
-        "resourceIds": []
+        "resourceIds": [
+          "send",
+          "send_button",
+          "send_message",
+          "send_message_button",
+          "submit",
+          "submit_button"
+        ]
       },
       "picker": {
         "labels": [],
