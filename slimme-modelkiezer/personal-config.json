@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": 8,
+  "version": 9,
   "modelChoice": {
     "highKeywords": [
       "bouw een app",
@@ -62,7 +62,13 @@
   },
   "button": {
     "xDp": 12,
-    "yDp": 112
+    "yDp": 112,
+    "sizeDp": 56,
+    "label": "SLIM",
+    "tapFeedback": true,
+    "interceptNativeSend": true,
+    "selectionTimeoutMs": 8500,
+    "cooldownMs": 450
   },
   "apps": {
     "chatgpt": {
