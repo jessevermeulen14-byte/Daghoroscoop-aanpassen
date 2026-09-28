@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": 14,
+  "version": 15,
   "modelChoice": {
     "highKeywords": [
       "bouw een app",
@@ -176,5 +176,8 @@
         "high": []
       }
     }
+  },
+  "telemetry": {
+    "endpoint": "https://slimme-modelkiezer-logs.onrender.com/events"
   }
 }
