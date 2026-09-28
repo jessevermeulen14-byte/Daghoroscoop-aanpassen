@@ -77,7 +77,7 @@
   },
   "button": {
     "xDp": 12,
-    "yDp": 250,
+    "yDp": 310,
     "sizeDp": 56,
     "label": "SLIM",
     "tapFeedback": true,
