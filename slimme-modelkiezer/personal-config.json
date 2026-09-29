@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": 16,
+  "version": 17,
   "modelChoice": {
     "highKeywords": [
       "bouw een app",
@@ -128,14 +128,24 @@
         ]
       },
       "picker": {
-        "labels": [],
+        "labels": [
+          "6 sol",
+          "6 astra",
+          "6 luna"
+        ],
         "resourceIds": []
       },
-      "modelPickerEnabled": false,
+      "modelPickerEnabled": true,
       "modelModes": {
-        "instant": [],
-        "thinking": [],
-        "high": []
+        "instant": [
+          "6 luna"
+        ],
+        "thinking": [
+          "6 sol"
+        ],
+        "high": [
+          "6 astra"
+        ]
       }
     },
     "claude": {
