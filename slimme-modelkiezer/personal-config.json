@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": 18,
+  "version": 19,
   "modelChoice": {
     "highKeywords": [
       "bouw een app",
@@ -30,9 +30,9 @@
   "picker": {
     "labels": [],
     "resourceIds": [],
-    "retries": 1,
+    "retries": 4,
     "skipWhenMissing": false,
-    "retryDelayMs": 120
+    "retryDelayMs": 250
   },
   "send": {
     "labels": [
