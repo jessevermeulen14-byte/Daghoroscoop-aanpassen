@@ -1,0 +1,13 @@
+jdk:
+  - openjdk17
+
+before_install:
+  - curl -fL --retry 5 https://services.gradle.org/distributions/gradle-8.10.2-bin.zip -o /tmp/gradle.zip
+  - unzip -q /tmp/gradle.zip -d /tmp
+
+install:
+  - cd slimme-apk-build-406/android && printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties && /tmp/gradle-8.10.2/bin/gradle --no-daemon --stacktrace -PslimBuildNumber=406 :app:assembleDebug
+  - mkdir -p "$HOME/.m2/repository/com/github/jessevermeulen14-byte/Daghoroscoop-aanpassen/$VERSION"
+  - cp slimme-apk-build-406/android/app/build/outputs/apk/debug/app-debug.apk "$HOME/.m2/repository/com/github/jessevermeulen14-byte/Daghoroscoop-aanpassen/$VERSION/Daghoroscoop-aanpassen-$VERSION.apk"
+  - cp slimme-apk-build-406/android/app/build/outputs/apk/debug/app-debug.apk "$HOME/.m2/repository/com/github/jessevermeulen14-byte/Daghoroscoop-aanpassen/$VERSION/Daghoroscoop-aanpassen-$VERSION.jar"
+  - printf '<project xmlns="http://maven.apache.org/POM/4.0.0"><modelVersion>4.0.0</modelVersion><groupId>com.github.jessevermeulen14-byte</groupId><artifactId>Daghoroscoop-aanpassen</artifactId><version>%s</version><packaging>apk</packaging></project>\n' "$VERSION" > "$HOME/.m2/repository/com/github/jessevermeulen14-byte/Daghoroscoop-aanpassen/$VERSION/Daghoroscoop-aanpassen-$VERSION.pom"
