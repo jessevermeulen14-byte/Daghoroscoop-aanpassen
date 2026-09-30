@@ -7,19 +7,13 @@ install:
     cd jitpack404
     export ANDROID_HOME="\${ANDROID_HOME:-$HOME/android-sdk}"
     export ANDROID_SDK_ROOT="$ANDROID_HOME"
-    mkdir -p "$ANDROID_HOME/cmdline-tools"
-    if ! command -v sdkmanager >/dev/null 2>&1 && [ ! -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
-      curl -fLsS --retry 3 -o /tmp/android-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-      rm -rf /tmp/android-cmdline && mkdir -p /tmp/android-cmdline
-      unzip -oq /tmp/android-tools.zip -d /tmp/android-cmdline
-      mkdir -p "$ANDROID_HOME/cmdline-tools/latest"
-      mv /tmp/android-cmdline/cmdline-tools/* "$ANDROID_HOME/cmdline-tools/latest/"
-    fi
-    if [ -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
-      SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-    else
-      SDKMANAGER="$(command -v sdkmanager)"
-    fi
+    rm -rf "$ANDROID_HOME/cmdline-tools/latest" /tmp/android-cmdline
+    mkdir -p "$ANDROID_HOME/cmdline-tools/latest" /tmp/android-cmdline
+    curl -fLsS --retry 3 -o /tmp/android-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+    unzip -oq /tmp/android-tools.zip -d /tmp/android-cmdline
+    mv /tmp/android-cmdline/cmdline-tools/* "$ANDROID_HOME/cmdline-tools/latest/"
+    SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+    "$SDKMANAGER" --version
     export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
     (yes || true) | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses >/dev/null
     "$SDKMANAGER" --sdk_root="$ANDROID_HOME" "platforms;android-35" "build-tools;35.0.0" "platform-tools"
