@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="accessibility_explanation">Toont een groene SLIM-knop in de door jou geselecteerde AI-apps: ChatGPT, Claude en Gemini. ChatGPT staat standaard aan; andere apps zijn optioneel. De dienst leest uitsluitend het huidige invoerveld om een model te adviseren en het bericht eenmaal via de zichtbare verzendknop te versturen. Alleen ChatGPT heeft voorlopig automatische modelmenuselectie; Claude en Gemini gebruiken hun al geselecteerde model. Berichttekst wordt niet opgeslagen of verzonden naar GitHub. Schakel de dienst zelf in via Android-toegankelijkheid.</string>
+</resources>
