@@ -1,0 +1,47 @@
+jdk:
+  - openjdk17
+
+install:
+  - |
+    set -euo pipefail
+    cd jitpack404
+    export ANDROID_HOME="\${ANDROID_HOME:-$HOME/android-sdk}"
+    export ANDROID_SDK_ROOT="$ANDROID_HOME"
+    mkdir -p "$ANDROID_HOME/cmdline-tools"
+    if ! command -v sdkmanager >/dev/null 2>&1 && [ ! -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
+      curl -fLsS --retry 3 -o /tmp/android-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+      rm -rf /tmp/android-cmdline && mkdir -p /tmp/android-cmdline
+      unzip -oq /tmp/android-tools.zip -d /tmp/android-cmdline
+      mkdir -p "$ANDROID_HOME/cmdline-tools/latest"
+      mv /tmp/android-cmdline/cmdline-tools/* "$ANDROID_HOME/cmdline-tools/latest/"
+    fi
+    if [ -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
+      SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+    else
+      SDKMANAGER="$(command -v sdkmanager)"
+    fi
+    export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
+    (yes || true) | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses >/dev/null
+    "$SDKMANAGER" --sdk_root="$ANDROID_HOME" "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+    printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
+    curl -fLsS --retry 3 -o /tmp/gradle.zip https://services.gradle.org/distributions/gradle-8.10.2-bin.zip
+    rm -rf /tmp/gradle-8.10.2
+    unzip -oq /tmp/gradle.zip -d /tmp
+    /tmp/gradle-8.10.2/bin/gradle --no-daemon --max-workers=1 -Dorg.gradle.jvmargs='-Xmx1024m -XX:MaxMetaspaceSize=384m -Dfile.encoding=UTF-8' -PslimBuildNumber=404 :app:assembleRelease
+    APK="app/build/outputs/apk/release/app-release-unsigned.apk"
+    test -s "$APK"
+    VER="\${VERSION:-$(git -C .. rev-parse HEAD)}"
+    M2="$HOME/.m2/repository/com/github/jessevermeulen14-byte/Daghoroscoop-aanpassen/$VER"
+    mkdir -p "$M2"
+    cp "$APK" "$M2/Daghoroscoop-aanpassen-$VER.apk"
+    cat > "$M2/Daghoroscoop-aanpassen-$VER.pom" <<EOF
+    <project xmlns="http://maven.apache.org/POM/4.0.0">
+      <modelVersion>4.0.0</modelVersion>
+      <groupId>com.github.jessevermeulen14-byte</groupId>
+      <artifactId>Daghoroscoop-aanpassen</artifactId>
+      <version>$VER</version>
+      <packaging>apk</packaging>
+    </project>
+    EOF
+    sha256sum "$APK"
+    echo "JITPACK_APK_READY=$M2/Daghoroscoop-aanpassen-$VER.apk"
