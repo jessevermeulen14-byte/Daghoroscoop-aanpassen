@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": 20,
+  "version": 21,
   "modelChoice": {
     "highKeywords": [
       "bouw een app",
@@ -80,7 +80,7 @@
     "yDp": 310,
     "sizeDp": 56,
     "label": "SLIM",
-    "tapFeedback": true,
+    "tapFeedback": false,
     "interceptNativeSend": false,
     "selectionTimeoutMs": 10000,
     "cooldownMs": 0
