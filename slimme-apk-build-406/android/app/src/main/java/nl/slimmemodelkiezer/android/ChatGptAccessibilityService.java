@@ -44,6 +44,7 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
     private boolean screenMenuAttempted = false;
     private boolean overflowAttempted = false;
     private boolean configureAttempted = false;
+    private int screenHeaderProbeIndex = 0;
     private long startedAt = 0L;
     private String seenChoices = "";
     private String verifiedLabel = "";
@@ -110,7 +111,7 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
         getSharedPreferences("connection_health", MODE_PRIVATE).edit()
             .putLong("service_connected_at", System.currentTimeMillis()).commit();
         HistoryStore.diagnostic(this, "SERVICE_CONNECTED");
-        HistoryStore.diagnostic(this, "ACCESSIBILITY_SERVICE_READY_COMPOSE_CACHE_FIX_20260930_V7");
+        HistoryStore.diagnostic(this, "ACCESSIBILITY_SERVICE_READY_HEADER_PROBE_BUILD407");
         processing = false;
         sendDispatched = false;
         dispatchedAt = 0L;
@@ -869,6 +870,7 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
         menuInspection = false;
         screenHeaderAttempted = false;
         screenMenuAttempted = false;
+        screenHeaderProbeIndex = 0;
         overflowAttempted = false;
         configureAttempted = false;
         headerTapAttempted = false;
@@ -1068,7 +1070,12 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
         }
     }
 
-    /** Screen OCR is a local fallback when Compose does not expose its visible menu rows. */
+    /**
+     * ChatGPT Compose can hide the model selector from Accessibility while still
+     * drawing it in the top bar. Build 406 used one guessed centre coordinate.
+     * Build 407 probes a small, bounded set of top-bar positions and verifies
+     * after every tap that a real model menu became visible before continuing.
+     */
     private void inspectScreenHeader() {
         if (!processing) return;
         ScreenModelReader.read(this, main, new ScreenModelReader.Callback() {
@@ -1079,27 +1086,72 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
             @Override public void success(android.graphics.Bitmap image,
                     List<ScreenModelReader.Item> items) {
                 if (!processing) return;
-                // A sheet may already be open after a semantic/header tap.
-                if (hasMenuTitle(items)) {
-                    HistoryStore.diagnostic(thisService(), "SCREEN_MENU_ALREADY_OPEN");
-                    inspectScreenMenu();
+                if (hasAccessibleModelMenu()) {
+                    HistoryStore.diagnostic(thisService(), "MODEL_MENU_OPEN_AFTER_HEADER_PROBE");
+                    main.postDelayed(ChatGptAccessibilityService.this::selectFromMenu, 80L);
                     return;
                 }
-                ScreenModelReader.Item header = screenHeaderItem(items, image);
-                if (header == null) {
-                    HistoryStore.diagnostic(thisService(), "SCREEN_MODEL_HEADER_NOT_FOUND");
-                    sendWithoutModelChange("SCREEN_MODEL_HEADER_UNAVAILABLE");
-                    return;
-                }
-                String value = header.text == null ? "" :
-                    header.text.trim().toLowerCase(Locale.ROOT);
-                HistoryStore.diagnostic(thisService(),
-                    value.equals("work") ? "SCREEN_WORK_OBSERVED" : "SCREEN_MODEL_HEADER_OBSERVED");
-                tapScreen(header.bounds.centerX(), header.bounds.centerY(),
-                    () -> main.postDelayed(ChatGptAccessibilityService.this::selectFromMenu, 450L),
-                    "Modelmenu kon niet worden geopend.");
+                probeNextHeaderPosition(image);
             }
         });
+    }
+
+    private boolean hasAccessibleModelMenu() {
+        List<AccessibilityNodeInfo> nodes = modelWindowNodes();
+        if (visibleModeCount(nodes) >= 2) return true;
+        for (AccessibilityNodeInfo n : nodes) {
+            if (!n.isVisibleToUser() || n.isEditable()) continue;
+            String value = label(n);
+            if (value.equals("instant") || value.equals("medium") ||
+                value.equals("standard") || value.equals("high") ||
+                value.equals("extended") || value.contains("thinking") ||
+                value.contains("luna") || value.contains("sol") ||
+                value.contains("astra")) return true;
+        }
+        return false;
+    }
+
+    private void probeNextHeaderPosition(android.graphics.Bitmap image) {
+        if (!processing) return;
+        // Model selectors have appeared at the left/centre of the ChatGPT top bar
+        // across recent Compose revisions. Never probe navigation or composer areas.
+        final float[] xFractions = new float[]{0.18f, 0.28f, 0.40f, 0.52f, 0.64f};
+        final float[] yFractions = new float[]{0.055f, 0.075f};
+        int total = xFractions.length * yFractions.length;
+        if (screenHeaderProbeIndex >= total) {
+            HistoryStore.diagnostic(this, "MODEL_HEADER_PROBES_EXHAUSTED");
+            // The SLIM tap is itself an explicit send action. If ChatGPT no longer
+            // exposes a selectable model menu, preserve usefulness and send with
+            // the currently active model instead of entering the obsolete
+            // Configureren/overflow dead-end.
+            sendWithoutModelChange("MODEL_MENU_NOT_OPENED_AFTER_SAFE_PROBES");
+            return;
+        }
+        int index = screenHeaderProbeIndex++;
+        int row = index / xFractions.length;
+        int col = index % xFractions.length;
+        int x = Math.round(image.getWidth() * xFractions[col]);
+        int y = Math.round(image.getHeight() * yFractions[row]);
+        HistoryStore.diagnosticDetail(this, "MODEL_HEADER_PROBE",
+            "i=" + index + ",x=" + x + ",y=" + y);
+        tapScreen(x, y, () -> main.postDelayed(() -> {
+            if (!processing) return;
+            if (hasAccessibleModelMenu()) {
+                HistoryStore.diagnostic(this, "MODEL_MENU_OPEN_AFTER_HEADER_PROBE");
+                main.postDelayed(this::selectFromMenu, 80L);
+            } else {
+                ScreenModelReader.read(this, main, new ScreenModelReader.Callback() {
+                    @Override public void failure(String code) {
+                        HistoryStore.diagnostic(thisService(), code);
+                        sendWithoutModelChange("SCREEN_HEADER_PROBE_CAPTURE_FAILED");
+                    }
+                    @Override public void success(android.graphics.Bitmap next,
+                            List<ScreenModelReader.Item> ignored) {
+                        probeNextHeaderPosition(next);
+                    }
+                });
+            }
+        }, 260L), "Modelkop kon niet worden aangetikt.");
     }
 
     /** Visible top-bar fallback for both a normal ChatGPT conversation and Work. */
@@ -1362,7 +1414,7 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
             return;
         }
         HistoryStore.diagnostic(this, "MODEL_CONFIGURE_NOT_OPENED");
-        fail("Configureren niet bereikbaar. Je bericht is niet verzonden en staat nog klaar.");
+        sendWithoutModelChange("MODEL_CONFIGURE_NOT_OPENED_FALLBACK");
     }
 
     private static int brightPixels(android.graphics.Bitmap image, int y) {
