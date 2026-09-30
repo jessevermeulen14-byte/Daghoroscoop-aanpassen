@@ -5,7 +5,7 @@ install:
   - |
     set -euo pipefail
     cd jitpack404
-    export ANDROID_HOME="\${ANDROID_HOME:-$HOME/android-sdk}"
+    export ANDROID_HOME="$HOME/android-sdk"
     export ANDROID_SDK_ROOT="$ANDROID_HOME"
     rm -rf "$ANDROID_HOME/cmdline-tools/latest" /tmp/android-cmdline
     mkdir -p "$ANDROID_HOME/cmdline-tools/latest" /tmp/android-cmdline
@@ -24,7 +24,7 @@ install:
     /tmp/gradle-8.10.2/bin/gradle --no-daemon --max-workers=1 -Dorg.gradle.jvmargs='-Xmx1024m -XX:MaxMetaspaceSize=384m -Dfile.encoding=UTF-8' -PslimBuildNumber=404 :app:assembleRelease
     APK="app/build/outputs/apk/release/app-release-unsigned.apk"
     test -s "$APK"
-    VER="\${VERSION:-$(git -C .. rev-parse HEAD)}"
+    VER="$VERSION"
     M2="$HOME/.m2/repository/com/github/jessevermeulen14-byte/Daghoroscoop-aanpassen/$VER"
     mkdir -p "$M2"
     cp "$APK" "$M2/Daghoroscoop-aanpassen-$VER.apk"
