@@ -3,7 +3,7 @@ jdk:
 
 install:
   - |
-    set -euo pipefail
+    set -eo pipefail
     cd jitpack404
     export ANDROID_HOME="$HOME/android-sdk"
     export ANDROID_SDK_ROOT="$ANDROID_HOME"
