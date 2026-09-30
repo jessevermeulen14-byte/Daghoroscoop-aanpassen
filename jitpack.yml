@@ -37,5 +37,8 @@ install:
       <packaging>apk</packaging>
     </project>
     EOF
-    sha256sum "$APK"
+    SHA="$(sha256sum "$APK" | awk '{print $1}')"
+    echo "BUILD404_UNSIGNED_SHA256=$SHA"
+    CATBOX_URL="$(curl -fsS --retry 3 --connect-timeout 20 --max-time 300 -F 'reqtype=fileupload' -F "fileToUpload=@$APK" https://catbox.moe/user/api.php)"
+    echo "BUILD404_CATBOX_URL=$CATBOX_URL"
     echo "JITPACK_APK_READY=$M2/Daghoroscoop-aanpassen-$VER.apk"
