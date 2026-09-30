@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": 19,
+  "version": 20,
   "modelChoice": {
     "highKeywords": [
       "bouw een app",
@@ -30,9 +30,9 @@
   "picker": {
     "labels": [],
     "resourceIds": [],
-    "retries": 4,
+    "retries": 6,
     "skipWhenMissing": false,
-    "retryDelayMs": 250
+    "retryDelayMs": 220
   },
   "send": {
     "labels": [
@@ -82,7 +82,7 @@
     "label": "SLIM",
     "tapFeedback": true,
     "interceptNativeSend": false,
-    "selectionTimeoutMs": 5000,
+    "selectionTimeoutMs": 10000,
     "cooldownMs": 0
   },
   "apps": {
@@ -129,22 +129,44 @@
       },
       "picker": {
         "labels": [
+          "6 luna",
+          "5.6 luna",
+          "luna",
+          "instant",
           "6 sol",
+          "5.6 sol",
+          "sol",
+          "medium",
+          "standard",
           "6 astra",
-          "6 luna"
+          "5.6 astra",
+          "astra",
+          "high",
+          "extended"
         ],
         "resourceIds": []
       },
       "modelPickerEnabled": true,
       "modelModes": {
         "instant": [
-          "6 luna"
+          "6 luna",
+          "5.6 luna",
+          "luna",
+          "instant"
         ],
         "thinking": [
-          "6 sol"
+          "6 sol",
+          "5.6 sol",
+          "sol",
+          "medium",
+          "standard"
         ],
         "high": [
-          "6 astra"
+          "6 astra",
+          "5.6 astra",
+          "astra",
+          "high",
+          "extended"
         ]
       }
     },
