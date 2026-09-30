@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": 21,
+  "version": 22,
   "modelChoice": {
     "highKeywords": [
       "bouw een app",
@@ -28,11 +28,24 @@
     "highSignalCount": 2
   },
   "picker": {
-    "labels": [],
+    "labels": [
+      "gpt-5.6",
+      "gpt 5.6",
+      "chatgpt 5.6",
+      "gpt-5",
+      "gpt 5",
+      "chatgpt 5",
+      "chatgpt",
+      "model",
+      "choose model",
+      "change model",
+      "model kiezen",
+      "model selecteren"
+    ],
     "resourceIds": [],
-    "retries": 6,
-    "skipWhenMissing": false,
-    "retryDelayMs": 220
+    "retries": 3,
+    "skipWhenMissing": true,
+    "retryDelayMs": 180
   },
   "send": {
     "labels": [
@@ -129,6 +142,18 @@
       },
       "picker": {
         "labels": [
+          "gpt-5.6",
+          "gpt 5.6",
+          "chatgpt 5.6",
+          "gpt-5",
+          "gpt 5",
+          "chatgpt 5",
+          "chatgpt",
+          "model",
+          "choose model",
+          "change model",
+          "model kiezen",
+          "model selecteren",
           "6 luna",
           "5.6 luna",
           "luna",
@@ -149,24 +174,33 @@
       "modelPickerEnabled": true,
       "modelModes": {
         "instant": [
+          "gpt-5.6 instant",
+          "gpt 5.6 instant",
+          "instant",
           "6 luna",
           "5.6 luna",
-          "luna",
-          "instant"
+          "luna"
         ],
         "thinking": [
+          "gpt-5.6 thinking",
+          "gpt 5.6 thinking",
+          "thinking standard",
+          "medium",
+          "standard",
           "6 sol",
           "5.6 sol",
-          "sol",
-          "medium",
-          "standard"
+          "sol"
         ],
         "high": [
+          "gpt-5.6 high",
+          "gpt 5.6 high",
+          "thinking high",
+          "thinking extended",
+          "high",
+          "extended",
           "6 astra",
           "5.6 astra",
-          "astra",
-          "high",
-          "extended"
+          "astra"
         ]
       }
     },
