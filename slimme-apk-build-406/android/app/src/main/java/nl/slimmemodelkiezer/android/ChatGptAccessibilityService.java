@@ -66,6 +66,10 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
             // Previously chatForeground stayed false, so the green button never appeared.
             if (enabled() && !processing) {
                 RemoteRules.refresh(ChatGptAccessibilityService.this, false);
+                // Build 410: recover directly from a visible AI application
+                // window before refreshing the overlay. This restores SLIM
+                // after app/keyboard transitions that emit no usable event.
+                recoverVisibleAiWindow();
                 chatRoot();
                 refreshOverlay();
             }
@@ -117,7 +121,7 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
         getSharedPreferences("connection_health", MODE_PRIVATE).edit()
             .putLong("service_connected_at", System.currentTimeMillis()).commit();
         HistoryStore.diagnostic(this, "SERVICE_CONNECTED");
-        HistoryStore.diagnostic(this, "ACCESSIBILITY_SERVICE_READY_CAPTURE_WATCHDOG_BUILD409");
+        HistoryStore.diagnostic(this, "ACCESSIBILITY_SERVICE_READY_OVERLAY_RECOVERY_BUILD410");
         processing = false;
         sendDispatched = false;
         dispatchedAt = 0L;
@@ -602,6 +606,29 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
             recentLiveEditor() != null;
     }
 
+    /** Build 410: verify the selected AI app directly from Android's visible
+     * application windows. This recovery path does not depend on Compose
+     * exposing an editor or on ChatGPT emitting a fresh text event. */
+    private boolean recoverVisibleAiWindow() {
+        List<AccessibilityWindowInfo> all = getWindows();
+        if (all == null) return false;
+        for (AccessibilityWindowInfo window : all) {
+            if (window.getType() != AccessibilityWindowInfo.TYPE_APPLICATION) continue;
+            AccessibilityNodeInfo root = window.getRoot();
+            if (root == null || root.getPackageName() == null) continue;
+            String pkg = root.getPackageName().toString();
+            if (!SupportedAiApps.enabled(this, pkg)) continue;
+            if (!pkg.equals(activePackage)) {
+                activePackage = pkg;
+                latestChatEventRoot = root;
+            }
+            chatForeground = true;
+            lastChatEventAt = SystemClock.uptimeMillis();
+            return true;
+        }
+        return false;
+    }
+
     private void showIndependentButton() {
         // Accessibility events can arrive while the model sheet is open.
         // Recreating this overlay covers the Luna row and defeats screen OCR.
@@ -616,9 +643,16 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
             connectionState("SLIM_WINDOW_MANAGER_MISSING");
             return;
         }
-        if (!SupportedAiApps.enabled(this, activePackage) || (!chatForeground && !recentChatEditorEvent())) {
-            connectionState("SLIM_NO_VISIBLE_CHATGPT_WINDOW");
-            return;
+        if (!SupportedAiApps.enabled(this, activePackage) ||
+                (!chatForeground && !recentChatEditorEvent())) {
+            // Compose can stop publishing useful accessibility events after an
+            // app update while the ChatGPT application window itself is still
+            // plainly visible. Recover from that window before giving up.
+            if (!recoverVisibleAiWindow()) {
+                connectionState("SLIM_NO_VISIBLE_CHATGPT_WINDOW");
+                return;
+            }
+            HistoryStore.diagnostic(this, "SLIM_WINDOW_RECOVERED_BUILD410");
         }
         android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
         int size = Math.round(RemoteRules.current().buttonSizeDp * metrics.density);
