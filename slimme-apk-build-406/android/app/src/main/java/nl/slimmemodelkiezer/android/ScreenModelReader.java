@@ -9,6 +9,7 @@ import android.os.Handler;
 import android.view.Display;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Lightweight local screen fallback.
@@ -36,12 +37,25 @@ final class ScreenModelReader {
             return;
         }
         try {
+            AtomicBoolean completed = new AtomicBoolean(false);
+            Runnable timeout = () -> {
+                if (completed.compareAndSet(false, true))
+                    callback.failure("SCREEN_CAPTURE_TIMEOUT");
+            };
+            handler.postDelayed(timeout, 1200L);
             service.takeScreenshot(Display.DEFAULT_DISPLAY, handler::post,
                 new AccessibilityService.TakeScreenshotCallback() {
                     @Override public void onFailure(int errorCode) {
+                        if (!completed.compareAndSet(false, true)) return;
+                        handler.removeCallbacks(timeout);
                         callback.failure("SCREEN_CAPTURE_FAILED_" + errorCode);
                     }
                     @Override public void onSuccess(AccessibilityService.ScreenshotResult result) {
+                        if (!completed.compareAndSet(false, true)) {
+                            try { result.getHardwareBuffer().close(); } catch (RuntimeException ignored) { }
+                            return;
+                        }
+                        handler.removeCallbacks(timeout);
                         HardwareBuffer buffer = result.getHardwareBuffer();
                         Bitmap bitmap = null;
                         try {
