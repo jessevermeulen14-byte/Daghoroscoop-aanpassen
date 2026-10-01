@@ -92,6 +92,12 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
     private long dispatchedAt = 0L;
     // Preserve button position during transient null roots and keyboard animations.
     private Rect lastComposerBounds;
+    // Build 408: freeze the already-verified draft/composer geometry for exactly
+    // one explicit SLIM transaction. ChatGPT Compose may invalidate all editor
+    // nodes while model selection is in progress, but that must not erase the
+    // verification that existed at the user tap.
+    private String transactionDraft = "";
+    private Rect transactionComposerBounds;
     private final SendAttemptGate sendGate = new SendAttemptGate();
     private void connectionState(String state) {
         if (!state.equals(lastConnectionState)) {
@@ -111,7 +117,7 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
         getSharedPreferences("connection_health", MODE_PRIVATE).edit()
             .putLong("service_connected_at", System.currentTimeMillis()).commit();
         HistoryStore.diagnostic(this, "SERVICE_CONNECTED");
-        HistoryStore.diagnostic(this, "ACCESSIBILITY_SERVICE_READY_HEADER_PROBE_BUILD407");
+        HistoryStore.diagnostic(this, "ACCESSIBILITY_SERVICE_READY_TRANSACTION_SEND_BUILD408");
         processing = false;
         sendDispatched = false;
         dispatchedAt = 0L;
@@ -123,6 +129,8 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
         latestEditorEventAt = 0L;
         latestDraftText = "";
         lastComposerBounds = null;
+        transactionDraft = "";
+        transactionComposerBounds = null;
         main.post(this::refreshOverlay);
         main.removeCallbacks(visibilityPoll);
         // Check immediately after the service comes online, even before typing.
@@ -861,6 +869,21 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
             Toast.makeText(this, "Typ eerst je bericht in ChatGPT.", Toast.LENGTH_SHORT).show();
             return;
         }
+        // Freeze the exact draft and composer geometry at the explicit SLIM tap.
+        // This is the last moment at which ChatGPT has positively exposed the
+        // user's draft. Later model-menu probes are allowed to invalidate Compose
+        // nodes without invalidating this one send transaction.
+        transactionDraft = draft;
+        Rect txBounds = new Rect();
+        if (editor != null) {
+            try { editor.getBoundsInScreen(txBounds); } catch (RuntimeException ignored) { }
+        }
+        if (txBounds.isEmpty() && lastComposerBounds != null)
+            txBounds.set(lastComposerBounds);
+        transactionComposerBounds = txBounds.isEmpty() ? null : new Rect(txBounds);
+        HistoryStore.diagnostic(this, transactionComposerBounds == null
+            ? "TRANSACTION_DRAFT_SNAPSHOT_NO_BOUNDS"
+            : "TRANSACTION_DRAFT_SNAPSHOT_READY");
         HistoryStore.diagnostic(this, "SMART_SEND_TAPPED");
         startedAt = SystemClock.uptimeMillis();
         sendDispatched = false;
@@ -1561,6 +1584,12 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
 
     /** Never submit stale, blank or modified text. Retry briefly while the
      * Android keyboard and ChatGPT's native Send node settle. */
+    private boolean transactionDraftStillValid() {
+        return processing && draft != null && !draft.isEmpty() &&
+            draft.equals(transactionDraft) &&
+            transactionComposerBounds != null && !transactionComposerBounds.isEmpty();
+    }
+
     private void dispatchCheckedSend(boolean modelVerified, int retry) {
         if (!processing || sendDispatched) return;
         AccessibilityNodeInfo root = chatRoot();
@@ -1585,19 +1614,25 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
                     draft.equals(live.getText().toString())) e = live;
         }
         boolean cachedDraftVerified = false;
+        boolean transactionDraftVerified = false;
         if (e == null || e.getText() == null) {
             cachedDraftVerified = recentCachedDraft(draft);
             if (!cachedDraftVerified) {
-                if (retry < RemoteRules.current().sendRetries) {
-                    main.postDelayed(() -> dispatchCheckedSend(modelVerified, retry + 1), RemoteRules.current().retryDelayMs);
+                transactionDraftVerified = transactionDraftStillValid();
+                if (!transactionDraftVerified) {
+                    if (retry < RemoteRules.current().sendRetries) {
+                        main.postDelayed(() -> dispatchCheckedSend(modelVerified, retry + 1), RemoteRules.current().retryDelayMs);
+                        return;
+                    }
+                    fail("ChatGPT-tekstvak niet toegankelijk. Je bericht is niet verstuurd.");
                     return;
                 }
-                fail("ChatGPT-tekstvak niet toegankelijk. Je bericht is niet verstuurd.");
-                return;
+                HistoryStore.diagnostic(this, "SEND_DRAFT_VERIFIED_FROM_TRANSACTION_SNAPSHOT");
+            } else {
+                HistoryStore.diagnostic(this, "SEND_DRAFT_VERIFIED_FROM_RECENT_EVENT_CACHE");
             }
-            HistoryStore.diagnostic(this, "SEND_DRAFT_VERIFIED_FROM_RECENT_EVENT_CACHE");
         }
-        if (draft.isEmpty() || (!cachedDraftVerified && !draft.equals(e.getText().toString()))) {
+        if (draft.isEmpty() || (!cachedDraftVerified && !transactionDraftVerified && !draft.equals(e.getText().toString()))) {
             fail("Bericht gewijzigd. Je bericht is niet verstuurd.");
             return;
         }
@@ -1615,7 +1650,8 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
             if (SupportedAiApps.CHATGPT.equals(activePackage) &&
                     ((e != null && e.getText() != null && e.isVisibleToUser() &&
                       e.isEditable() && draft.equals(e.getText().toString())) ||
-                     (cachedDraftVerified && recentCachedDraft(draft)))) {
+                     (cachedDraftVerified && recentCachedDraft(draft)) ||
+                     transactionDraftVerified)) {
                 // The user explicitly tapped SLIM. When Compose invalidated the
                 // editor node, the latest text event plus saved composer bounds
                 // still prove which visible draft this tap belongs to.
@@ -1623,6 +1659,7 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
                     ? "SCREEN_SEND_FALLBACK_AFTER_MODEL_VERIFIED"
                     : "SCREEN_SEND_FALLBACK_CURRENT_MODEL");
                 if (e != null && e.getText() != null) inspectScreenSend(e);
+                else if (transactionDraftVerified) inspectScreenSend(transactionComposerBounds);
                 else inspectScreenSend(lastComposerBounds);
                 return;
             }
@@ -1689,7 +1726,7 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
         Rect composer = verifiedComposerBounds == null ? new Rect() :
             new Rect(verifiedComposerBounds);
         if (!processing || composer.isEmpty() || draft.isEmpty() ||
-                !recentCachedDraft(draft)) {
+                (!recentCachedDraft(draft) && !transactionDraftStillValid())) {
             fail("Concept niet meer bevestigd. Je bericht staat nog klaar.");
             return;
         }
@@ -1759,6 +1796,8 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
         dispatchedAt = 0L;
         sendGate.reset();
         draft = "";
+        transactionDraft = "";
+        transactionComposerBounds = null;
         bypassUntil = 0L;
         main.removeCallbacks(refreshTask);
         main.post(refreshTask);
@@ -1775,6 +1814,8 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
         sendDispatched = false;
         dispatchedAt = 0L;
         sendGate.reset();
+        transactionDraft = "";
+        transactionComposerBounds = null;
         main.removeCallbacksAndMessages(null);
         main.postDelayed(visibilityPoll, 1200L);
         // Keep the accessible button in place on failure. The 250 ms cooldown
