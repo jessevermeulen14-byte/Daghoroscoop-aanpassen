@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": 23,
+  "version": 24,
   "modelChoice": {
     "highKeywords": [
       "bouw een app",
@@ -43,9 +43,9 @@
       "model selecteren"
     ],
     "resourceIds": [],
-    "retries": 3,
+    "retries": 4,
     "skipWhenMissing": true,
-    "retryDelayMs": 180
+    "retryDelayMs": 120
   },
   "send": {
     "labels": [
@@ -85,8 +85,8 @@
       "send_prompt",
       "sendprompt"
     ],
-    "retries": 0,
-    "retryDelayMs": 50
+    "retries": 3,
+    "retryDelayMs": 80
   },
   "button": {
     "xDp": 12,
@@ -95,7 +95,7 @@
     "label": "SLIM",
     "tapFeedback": false,
     "interceptNativeSend": false,
-    "selectionTimeoutMs": 10000,
+    "selectionTimeoutMs": 7000,
     "cooldownMs": 0
   },
   "apps": {
