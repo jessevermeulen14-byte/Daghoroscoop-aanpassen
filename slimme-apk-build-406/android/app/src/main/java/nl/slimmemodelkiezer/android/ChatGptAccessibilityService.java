@@ -126,7 +126,7 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
         getSharedPreferences("connection_health", MODE_PRIVATE).edit()
             .putLong("service_connected_at", System.currentTimeMillis()).commit();
         HistoryStore.diagnostic(this, "SERVICE_CONNECTED");
-        HistoryStore.diagnostic(this, "ACCESSIBILITY_SERVICE_READY_OCR_BUILD415");
+        HistoryStore.diagnostic(this, "ACCESSIBILITY_SERVICE_READY_GEOMETRY_BUILD416");
         processing = false;
         sendDispatched = false;
         dispatchedAt = 0L;
@@ -1148,14 +1148,130 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
             clickedChoice = safeModelLabel(choice);
             verificationAttempts = 0;
             main.postDelayed(this::verifyThenSend, 65L);
-        } else {
-            if (!screenMenuAttempted && SupportedAiApps.CHATGPT.equals(activePackage)) {
-                screenMenuAttempted = true;
-                inspectScreenMenu();
-                return;
-            }
-            main.postDelayed(this::selectFromMenu, 160L);
+            return;
         }
+        // Build 416: recent ChatGPT Compose builds expose the model-sheet rows
+        // as clickable geometry but omit their text. Identify the three equal,
+        // wide rows as a group instead of guessing fixed screen coordinates.
+        AccessibilityNodeInfo geometricChoice = findModelChoiceByGeometry(nodes, target);
+        if (geometricChoice != null && clickUp(geometricChoice)) {
+            clickedChoice = screenTargetName();
+            verifiedLabel = clickedChoice;
+            HistoryStore.diagnosticDetail(this, "BUILD416_GEOMETRY_MODEL_ROW_TAPPED",
+                clickedChoice);
+            main.postDelayed(this::afterGeometryModelTap, 260L);
+            return;
+        }
+        if (!screenMenuAttempted && SupportedAiApps.CHATGPT.equals(activePackage)) {
+            screenMenuAttempted = true;
+            HistoryStore.diagnostic(this, "BUILD416_MODEL_ROWS_NOT_EXPOSED");
+            sendWithoutModelChange("BUILD416_NO_SAFE_MODEL_ROW");
+            return;
+        }
+        main.postDelayed(this::selectFromMenu, 160L);
+    }
+
+    private AccessibilityNodeInfo clickableAncestor(AccessibilityNodeInfo node) {
+        AccessibilityNodeInfo current = node;
+        for (int i = 0; current != null && i < 4; i++, current = current.getParent()) {
+            if (current.isClickable() && current.isEnabled() && current.isVisibleToUser())
+                return current;
+        }
+        return null;
+    }
+
+    private List<AccessibilityNodeInfo> geometricModelRows(List<AccessibilityNodeInfo> nodes) {
+        List<AccessibilityNodeInfo> candidates = new ArrayList<>();
+        List<Rect> bounds = new ArrayList<>();
+        android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
+        int minH = Math.round(34f * dm.density);
+        int maxH = Math.round(118f * dm.density);
+        for (AccessibilityNodeInfo raw : nodes) {
+            if (raw == null || !raw.isVisibleToUser() || raw.isEditable()) continue;
+            AccessibilityNodeInfo row = clickableAncestor(raw);
+            if (row == null || row.getPackageName() == null ||
+                    !activePackage.contentEquals(row.getPackageName())) continue;
+            Rect b = new Rect();
+            row.getBoundsInScreen(b);
+            if (b.isEmpty() || b.width() < dm.widthPixels * 0.52f ||
+                    b.height() < minH || b.height() > maxH ||
+                    b.centerY() < dm.heightPixels * 0.18f ||
+                    b.centerY() > dm.heightPixels * 0.88f) continue;
+            boolean duplicate = false;
+            for (Rect seen : bounds) {
+                if (Math.abs(seen.centerY() - b.centerY()) < Math.round(8f * dm.density) &&
+                        Math.abs(seen.left - b.left) < Math.round(12f * dm.density) &&
+                        Math.abs(seen.right - b.right) < Math.round(12f * dm.density)) {
+                    duplicate = true;
+                    break;
+                }
+            }
+            if (!duplicate) {
+                candidates.add(row);
+                bounds.add(new Rect(b));
+            }
+        }
+        java.util.Collections.sort(candidates, (a, b) -> {
+            Rect ra = new Rect(), rb = new Rect();
+            a.getBoundsInScreen(ra); b.getBoundsInScreen(rb);
+            return Integer.compare(ra.centerY(), rb.centerY());
+        });
+        if (candidates.size() < 3) return new ArrayList<>();
+
+        float bestScore = Float.MAX_VALUE;
+        List<AccessibilityNodeInfo> best = new ArrayList<>();
+        int minGap = Math.round(38f * dm.density);
+        int maxGap = Math.round(150f * dm.density);
+        for (int i = 0; i <= candidates.size() - 3; i++) {
+            AccessibilityNodeInfo a = candidates.get(i);
+            AccessibilityNodeInfo b = candidates.get(i + 1);
+            AccessibilityNodeInfo c = candidates.get(i + 2);
+            Rect ra = new Rect(), rb = new Rect(), rc = new Rect();
+            a.getBoundsInScreen(ra); b.getBoundsInScreen(rb); c.getBoundsInScreen(rc);
+            int g1 = rb.centerY() - ra.centerY();
+            int g2 = rc.centerY() - rb.centerY();
+            if (g1 < minGap || g1 > maxGap || g2 < minGap || g2 > maxGap) continue;
+            int widthSpread = Math.max(ra.width(), Math.max(rb.width(), rc.width())) -
+                Math.min(ra.width(), Math.min(rb.width(), rc.width()));
+            int edgeSpread = Math.abs(ra.left - rb.left) + Math.abs(rb.left - rc.left) +
+                Math.abs(ra.right - rb.right) + Math.abs(rb.right - rc.right);
+            float score = Math.abs(g1 - g2) * 4f + widthSpread + edgeSpread;
+            if (score < bestScore) {
+                bestScore = score;
+                best.clear();
+                best.add(a); best.add(b); best.add(c);
+            }
+        }
+        return best;
+    }
+
+    private AccessibilityNodeInfo findModelChoiceByGeometry(
+            List<AccessibilityNodeInfo> nodes, ModelRule.Level level) {
+        List<AccessibilityNodeInfo> rows = geometricModelRows(nodes);
+        if (rows.size() != 3) {
+            HistoryStore.diagnosticDetail(this, "BUILD416_GEOMETRY_ROWS",
+                "count=" + rows.size());
+            return null;
+        }
+        // The current ChatGPT sheet orders the three 6-series choices from
+        // strongest reasoning at the top to fastest at the bottom.
+        int index = level == ModelRule.Level.HIGH ? 0 :
+            level == ModelRule.Level.THINKING ? 1 : 2;
+        Rect first = new Rect(), middle = new Rect(), last = new Rect();
+        rows.get(0).getBoundsInScreen(first);
+        rows.get(1).getBoundsInScreen(middle);
+        rows.get(2).getBoundsInScreen(last);
+        HistoryStore.diagnosticDetail(this, "BUILD416_GEOMETRY_ROWS",
+            "y=" + first.centerY() + "," + middle.centerY() + "," + last.centerY());
+        return rows.get(index);
+    }
+
+    private void afterGeometryModelTap() {
+        if (!processing) return;
+        HistoryStore.diagnostic(this, "BUILD416_GEOMETRY_MODEL_TAP_COMPLETED");
+        // Close only the model sheet. The frozen transaction draft remains valid.
+        try { performGlobalAction(GLOBAL_ACTION_BACK); } catch (RuntimeException ignored) { }
+        main.postDelayed(this::sendWhenVerified, 260L);
     }
 
     /**
@@ -1196,7 +1312,7 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
                 value.contains("luna") || value.contains("sol") ||
                 value.contains("astra")) return true;
         }
-        return false;
+        return geometricModelRows(nodes).size() == 3;
     }
 
     private void probeNextHeaderPosition(android.graphics.Bitmap image) {
@@ -1360,7 +1476,7 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
         ScreenModelReader.read(this, main, new ScreenModelReader.Callback() {
             @Override public void failure(String code) {
                 HistoryStore.diagnostic(thisService(), code);
-                sendWithoutModelChange("BUILD415_SCREEN_MENU_OCR_FAILED");
+                sendWithoutModelChange("BUILD416_SCREEN_MENU_UNUSED");
             }
             @Override public void success(android.graphics.Bitmap image,
                     List<ScreenModelReader.Item> items) {
@@ -1528,10 +1644,10 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
                 if (!clickedChoice.isEmpty() && ModelMenuPolicy.matches(target, clickedChoice)) {
                     verifiedLabel = clickedChoice;
                     HistoryStore.diagnostic(thisService(),
-                        "BUILD415_MODEL_TAP_ACCEPTED_VERIFY_CAPTURE_FAILED");
+                        "BUILD416_MODEL_TAP_ACCEPTED_VERIFY_CAPTURE_FAILED");
                     sendWhenVerified();
                 } else {
-                    sendWithoutModelChange("BUILD415_MODEL_VERIFY_CAPTURE_FAILED");
+                    sendWithoutModelChange("BUILD416_MODEL_VERIFY_CAPTURE_FAILED");
                 }
             }
             @Override public void success(android.graphics.Bitmap image,
