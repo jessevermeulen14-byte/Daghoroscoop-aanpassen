@@ -2,15 +2,15 @@
 set -euo pipefail
 
 apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends curl unzip ca-certificates openjdk-21-jdk-headless python3 git binutils
+DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends curl unzip ca-certificates openjdk-21-jdk-headless python3
 
-rm -rf /workspace /opt/android-sdk /opt/gradle-8.10.2 /tmp/src.zip /tmp/cmdline.zip /tmp/gradle.zip
-mkdir -p /workspace /opt/android-sdk/cmdline-tools
+rm -rf /opt/android-sdk /tmp/cmdline.zip /tmp/artifact.zip /tmp/apk /tmp/slim-v2.jks
+mkdir -p /opt/android-sdk/cmdline-tools /tmp/apk /srv
 
-curl -fL --retry 5 https://codeload.github.com/jessevermeulen14-byte/Daghoroscoop-aanpassen/zip/refs/heads/apk-build-406 -o /tmp/src.zip
-unzip -q /tmp/src.zip -d /workspace
-SRC="$(find /workspace -maxdepth 1 -type d -name 'Daghoroscoop-aanpassen-*' | head -1)"
-test -n "$SRC"
+curl -fL --retry 5 "$ARTIFACT_URL" -o /tmp/artifact.zip
+unzip -q /tmp/artifact.zip -d /tmp/apk
+APK_IN="$(find /tmp/apk -type f -name '*.apk' | head -1)"
+test -s "$APK_IN"
 
 curl -fL --retry 5 https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o /tmp/cmdline.zip
 unzip -q /tmp/cmdline.zip -d /tmp/cmdline
@@ -20,49 +20,28 @@ export ANDROID_HOME=/opt/android-sdk
 export ANDROID_SDK_ROOT=/opt/android-sdk
 export PATH=/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-tools:$PATH
 yes | sdkmanager --licenses >/dev/null || true
-sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
-
-curl -fL --retry 5 https://services.gradle.org/distributions/gradle-8.10.2-bin.zip -o /tmp/gradle.zip
-unzip -q /tmp/gradle.zip -d /opt
+sdkmanager "build-tools;35.0.0" "platform-tools"
 
 printf '%s' "$SLIM_KEY_B64" | base64 -d > /tmp/slim-v2.jks
-export CM_KEYSTORE_PATH=/tmp/slim-v2.jks
-export CM_KEYSTORE_PASSWORD="$SLIM_KEYSTORE_PASSWORD"
-export CM_KEY_ALIAS="$SLIM_KEY_ALIAS"
-export CM_KEY_PASSWORD="$SLIM_KEY_PASSWORD"
+APKSIGNER=/opt/android-sdk/build-tools/35.0.0/apksigner
+OUT=/srv/Slimme-Modelkiezer-V2-build-418-signed.apk
 
-cd "$SRC/slimme-apk-build-406/android"
-sed -i 's/androidx.core:core:1.15.0/androidx.core:core:1.0.2/g' app/build.gradle
-printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
-export GRADLE_USER_HOME=/tmp/gradle-home-417
-rm -rf "$GRADLE_USER_HOME"
-mkdir -p "$GRADLE_USER_HOME"
-printf 'org.gradle.jvmargs=-Xmx512m -XX:MaxMetaspaceSize=192m -Dfile.encoding=UTF-8\norg.gradle.workers.max=1\norg.gradle.parallel=false\nandroid.useAndroidX=true\n' > gradle.properties
-cp gradle.properties "$GRADLE_USER_HOME/gradle.properties"
-export JAVA_TOOL_OPTIONS='-Xmx512m -XX:MaxMetaspaceSize=192m -Dfile.encoding=UTF-8'
+"$APKSIGNER" sign \
+  --ks /tmp/slim-v2.jks \
+  --ks-pass "pass:$SLIM_KEYSTORE_PASSWORD" \
+  --ks-key-alias "$SLIM_KEY_ALIAS" \
+  --key-pass "pass:$SLIM_KEY_PASSWORD" \
+  --out "$OUT" \
+  "$APK_IN"
 
-/opt/gradle-8.10.2/bin/gradle --no-daemon --max-workers=1 -Dorg.gradle.jvmargs='-Xmx512m -XX:MaxMetaspaceSize=192m -Dfile.encoding=UTF-8' -PslimBuildNumber=417 :app:assembleDebug
-
-mkdir -p /srv
-APK=/srv/Slimme-Modelkiezer-V2-build-417.apk
-cp app/build/outputs/apk/debug/app-debug.apk "$APK"
-CERT="$(/opt/android-sdk/build-tools/35.0.0/apksigner verify --print-certs "$APK" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1 | tr -d ':' | tr '[:lower:]' '[:upper:]')"
-echo "BUILD417_CERT=$CERT"
+"$APKSIGNER" verify --verbose --print-certs "$OUT"
+CERT="$("$APKSIGNER" verify --print-certs "$OUT" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1 | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+echo "BUILD418_CERT=$CERT"
 test "$CERT" = 'A94493DD75717D029440396FE018933F6D808623EE371AD9630D76A2E07F9078'
-SHA="$(sha256sum "$APK" | cut -d' ' -f1)"
-echo "BUILD417_SHA256=$SHA"
-CATBOX="$(curl -fsS --retry 5 -F 'reqtype=fileupload' -F "fileToUpload=@$APK" https://catbox.moe/user/api.php || true)"
-echo "BUILD417_CATBOX=$CATBOX"
-mkdir -p /tmp/apkverify416
-cd /tmp/apkverify416
-unzip -q "$APK" 'classes*.dex'
-for MARKER in ACCESSIBILITY_SERVICE_READY_RUNTIME_FIX_BUILD417 BUILD417_SEND_CONTROL_FOUND_BY_COMPOSER_GEOMETRY BUILD417_SEND_BOTTOM_RIGHT_FALLBACK; do
-  FOUND=0
-  for DEX in classes*.dex; do
-    if grep -aFq "$MARKER" "$DEX"; then FOUND=1; break; fi
-  done
-  test "$FOUND" = "1"
-  echo "BUILD417_APK_MARKER_OK=$MARKER"
-done
-cd /
+SHA="$(sha256sum "$OUT" | cut -d' ' -f1)"
+echo "BUILD418_SHA256=$SHA"
+
+CATBOX="$(curl -fsS --retry 5 -F 'reqtype=fileupload' -F "fileToUpload=@$OUT" https://catbox.moe/user/api.php || true)"
+echo "BUILD418_CATBOX=$CATBOX"
+
 exec python3 -m http.server "${PORT:-8080}" --bind 0.0.0.0 --directory /srv
