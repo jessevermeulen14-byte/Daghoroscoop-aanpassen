@@ -35,7 +35,9 @@ android { namespace 'nl.slimmemodelkiezer.android'; compileSdk 35
 }
 dependencies {
   implementation 'androidx.core:core:1.15.0'
-  // ML Kit removed: current model-selection flow uses Android accessibility only.
+  // Build 412: local, on-device OCR for ChatGPT's Compose model sheet.
+  // No prompt or screenshot is sent to a server.
+  implementation 'com.google.mlkit:text-recognition:16.0.1'
   constraints {
     implementation('org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22')
     implementation('org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22')
