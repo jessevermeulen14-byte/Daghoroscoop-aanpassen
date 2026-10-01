@@ -126,7 +126,7 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
         getSharedPreferences("connection_health", MODE_PRIVATE).edit()
             .putLong("service_connected_at", System.currentTimeMillis()).commit();
         HistoryStore.diagnostic(this, "SERVICE_CONNECTED");
-        HistoryStore.diagnostic(this, "ACCESSIBILITY_SERVICE_READY_GEOMETRY_BUILD416");
+        HistoryStore.diagnostic(this, "ACCESSIBILITY_SERVICE_READY_RUNTIME_FIX_BUILD417");
         processing = false;
         sendDispatched = false;
         dispatchedAt = 0L;
@@ -1319,8 +1319,11 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
         if (!processing) return;
         // Model selectors have appeared at the left/centre of the ChatGPT top bar
         // across recent Compose revisions. Never probe navigation or composer areas.
-        final float[] xFractions = new float[]{0.18f, 0.28f, 0.40f, 0.52f, 0.64f};
-        final float[] yFractions = new float[]{0.055f, 0.075f};
+        final float[] xFractions = new float[]{0.28f, 0.40f, 0.52f, 0.64f, 0.76f};
+        // Build 417: the current ChatGPT Android model label sits below the
+        // very top app chrome, directly above the blue reasoning-mode bar.
+        // Earlier probes at 5.5-7.5% were too high and consistently missed it.
+        final float[] yFractions = new float[]{0.095f, 0.115f, 0.135f, 0.155f};
         int total = xFractions.length * yFractions.length;
         if (screenHeaderProbeIndex >= total) {
             HistoryStore.diagnostic(this, "MODEL_HEADER_PROBES_EXHAUSTED");
@@ -1905,6 +1908,39 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
         }
     }
 
+    private AccessibilityNodeInfo findSendNearComposer(Rect composer) {
+        if (composer == null || composer.isEmpty()) return null;
+        android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
+        int maxSize = Math.round(84f * dm.density);
+        int pad = Math.round(28f * dm.density);
+        AccessibilityNodeInfo best = null;
+        float bestScore = Float.MAX_VALUE;
+        for (AccessibilityNodeInfo node : modelWindowNodes()) {
+            if (node == null || !node.isVisibleToUser() || !node.isEnabled() ||
+                    node.isEditable() || node.getPackageName() == null ||
+                    !activePackage.contentEquals(node.getPackageName())) continue;
+            AccessibilityNodeInfo clickable = clickableAncestor(node);
+            if (clickable == null) continue;
+            Rect b = new Rect();
+            clickable.getBoundsInScreen(b);
+            if (b.isEmpty() || b.width() > maxSize || b.height() > maxSize) continue;
+            // Send lives at the right end of the verified composer, sometimes
+            // slightly inside it and sometimes just outside its visual bounds.
+            if (b.centerX() < composer.right - Math.round(96f * dm.density) ||
+                    b.centerX() > composer.right + pad ||
+                    b.centerY() < composer.top - pad ||
+                    b.centerY() > composer.bottom + pad) continue;
+            float dx = Math.abs(b.centerX() - (composer.right - Math.round(28f * dm.density)));
+            float dy = Math.abs(b.centerY() - (composer.bottom - Math.round(28f * dm.density)));
+            float score = dx + dy;
+            if (score < bestScore) {
+                bestScore = score;
+                best = clickable;
+            }
+        }
+        return best;
+    }
+
     private void inspectScreenSend(AccessibilityNodeInfo verifiedEditor) {
         Rect composer = new Rect();
         verifiedEditor.getBoundsInScreen(composer);
@@ -1919,20 +1955,37 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
             fail("Concept niet meer bevestigd. Je bericht staat nog klaar.");
             return;
         }
-        // The old implementation took a screenshot while our own Send interceptor
-        // was still covering ChatGPT's arrow, then rejected the obscured arrow.
-        // At this point the exact draft has already been re-read and matched.
-        // Remove our overlays first and tap once inside the composer's right-hand
-        // action area. This works for both regular ChatGPT and Work.
         float density = getResources().getDisplayMetrics().density;
-        int inset = Math.round(24 * density);
-        int x = Math.max(composer.left + inset, composer.right - inset);
-        int y = composer.centerY();
         android.util.DisplayMetrics display = getResources().getDisplayMetrics();
         if (composer.width() < Math.round(120 * density) ||
-                composer.height() > Math.round(190 * density) ||
-                y < display.heightPixels / 2 ||
-                x <= composer.left || x >= display.widthPixels) {
+                composer.height() > Math.round(220 * density) ||
+                composer.centerY() < display.heightPixels / 2) {
+            HistoryStore.diagnostic(this, "SCREEN_SEND_COMPOSER_GEOMETRY_REJECTED");
+            fail("Verzendpositie niet betrouwbaar. Je bericht staat nog klaar.");
+            return;
+        }
+
+        AccessibilityNodeInfo nearbySend = findSendNearComposer(composer);
+        int x;
+        int y;
+        if (nearbySend != null) {
+            Rect b = new Rect();
+            nearbySend.getBoundsInScreen(b);
+            x = b.centerX();
+            y = b.centerY();
+            HistoryStore.diagnostic(this, "BUILD417_SEND_CONTROL_FOUND_BY_COMPOSER_GEOMETRY");
+        } else {
+            // Current ChatGPT places the send arrow in the bottom-right action
+            // corner of the composer, not at its vertical centre.
+            int rightInset = Math.round(28f * density);
+            int bottomInset = Math.round(28f * density);
+            x = Math.max(composer.left + rightInset, composer.right - rightInset);
+            y = Math.max(composer.top + bottomInset, composer.bottom - bottomInset);
+            HistoryStore.diagnostic(this, "BUILD417_SEND_BOTTOM_RIGHT_FALLBACK");
+        }
+        if (x <= composer.left || x >= display.widthPixels ||
+                y <= composer.top - Math.round(30f * density) ||
+                y >= display.heightPixels) {
             HistoryStore.diagnostic(this, "SCREEN_SEND_COMPOSER_GEOMETRY_REJECTED");
             fail("Verzendpositie niet betrouwbaar. Je bericht staat nog klaar.");
             return;
