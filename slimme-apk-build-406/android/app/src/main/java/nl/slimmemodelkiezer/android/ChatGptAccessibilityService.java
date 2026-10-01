@@ -57,8 +57,13 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
             // Independent watchdog: a missed accessibility callback must not leave
             // the floating button hidden forever after an interrupted attempt.
             if (processing && SystemClock.uptimeMillis() >= deadline) {
-                HistoryStore.diagnostic(ChatGptAccessibilityService.this, "SELECTION_TIMEOUT");
-                fail("Modelkeuze verlopen. Je vraag blijft staan.");
+                // Build 411: the explicit SLIM tap is a send command. A model-picker
+                // timeout must fall back to the current model instead of cancelling
+                // the transaction before the watchdog can run.
+                HistoryStore.diagnostic(ChatGptAccessibilityService.this,
+                    "BUILD411_SELECTION_TIMEOUT_FALLBACK_SEND");
+                menuInspection = false;
+                sendWithoutModelChange("SELECTION_TIMEOUT_CURRENT_MODEL");
                 return;
             }
             // Poll the actual ChatGPT window even when Android never delivered a
@@ -121,7 +126,7 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
         getSharedPreferences("connection_health", MODE_PRIVATE).edit()
             .putLong("service_connected_at", System.currentTimeMillis()).commit();
         HistoryStore.diagnostic(this, "SERVICE_CONNECTED");
-        HistoryStore.diagnostic(this, "ACCESSIBILITY_SERVICE_READY_OVERLAY_RECOVERY_BUILD410");
+        HistoryStore.diagnostic(this, "ACCESSIBILITY_SERVICE_READY_TRANSACTION_BUILD411");
         processing = false;
         sendDispatched = false;
         dispatchedAt = 0L;
@@ -197,6 +202,21 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
         // selected AI app is enough to create our OWN Android overlay immediately.
         // This is not a button inserted into ChatGPT's interface.
         if (event.getEventType() == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED) {
+            // Build 411: ChatGPT Compose can invalidate event.getSource() immediately
+            // while AccessibilityEvent#getText still contains the current composer text.
+            // Cache only text delivered by the selected AI app's own event.
+            if (SupportedAiApps.enabled(this, eventPackage) &&
+                    event.getText() != null && !event.getText().isEmpty()) {
+                CharSequence eventText = event.getText().get(event.getText().size() - 1);
+                if (eventText != null && eventText.length() > 0) {
+                    latestDraftText = eventText.toString();
+                    latestEditorEventAt = SystemClock.uptimeMillis();
+                    chatForeground = true;
+                    lastChatEventAt = SystemClock.uptimeMillis();
+                    activatePackage(eventPackage);
+                    HistoryStore.diagnostic(this, "BUILD411_EVENT_TEXT_CACHED");
+                }
+            }
             AccessibilityNodeInfo firstEditor = event.getSource();
             if (firstEditor != null && firstEditor.isEditable() &&
                     firstEditor.isVisibleToUser() && firstEditor.getText() != null &&
@@ -826,12 +846,13 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
         boolean liveForeground = foreground != null && foreground.getPackageName() != null
             && activePackage.contentEquals(foreground.getPackageName());
         boolean liveEditor = recentLiveEditor() != null;
-        if (!SupportedAiApps.enabled(this, activePackage) ||
-                (!liveForeground && !liveEditor)) {
+        boolean visibleWindow = liveForeground || liveEditor || recoverVisibleAiWindow();
+        if (!SupportedAiApps.enabled(this, activePackage) || !visibleWindow) {
             HistoryStore.diagnostic(this, "SLIM_TAP_NO_ENABLED_AI_FOREGROUND_ROOT");
-            Toast.makeText(this, "ChatGPT-invoerveld niet bereikbaar; open het gesprek en typ opnieuw.", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "ChatGPT is niet als zichtbaar venster gevonden.", Toast.LENGTH_LONG).show();
             return;
         }
+        HistoryStore.diagnostic(this, "BUILD411_TAP_CONTINUES_TO_TRANSACTION");
         interceptSend();
     }
 
@@ -854,8 +875,7 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
         if (!SupportedAiApps.enabled(this, activePackage) || expected == null ||
                 expected.isEmpty() || !expected.equals(latestDraftText)) return false;
         long age = SystemClock.uptimeMillis() - latestEditorEventAt;
-        return latestEditorEventAt > 0L && age >= 0L && age <= 120000L &&
-            lastComposerBounds != null && !lastComposerBounds.isEmpty();
+        return latestEditorEventAt > 0L && age >= 0L && age <= 120000L;
     }
 
     private void interceptSend() {
@@ -887,7 +907,7 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
             if (latestDraftText != null && !latestDraftText.trim().isEmpty() &&
                     recentCachedDraft(latestDraftText)) {
                 draft = latestDraftText;
-                HistoryStore.diagnostic(this, "SLIM_TAP_USING_CACHED_COMPOSER_TEXT");
+                HistoryStore.diagnostic(this, "BUILD411_USING_EVENT_CACHED_DRAFT");
             } else {
                 sendGate.reset();
                 HistoryStore.diagnostic(this, root == null ? "SLIM_TAP_CHATGPT_ROOT_UNAVAILABLE" : "SLIM_TAP_EDITOR_NOT_ACCESSIBLE");
@@ -916,7 +936,7 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
             txBounds.set(lastComposerBounds);
         transactionComposerBounds = txBounds.isEmpty() ? null : new Rect(txBounds);
         HistoryStore.diagnostic(this, transactionComposerBounds == null
-            ? "TRANSACTION_DRAFT_SNAPSHOT_NO_BOUNDS"
+            ? "BUILD411_TRANSACTION_DRAFT_READY_NO_GEOMETRY"
             : "TRANSACTION_DRAFT_SNAPSHOT_READY");
         HistoryStore.diagnostic(this, "SMART_SEND_TAPPED");
         startedAt = SystemClock.uptimeMillis();
@@ -1632,7 +1652,8 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
     private boolean transactionDraftStillValid() {
         return processing && draft != null && !draft.isEmpty() &&
             draft.equals(transactionDraft) &&
-            transactionComposerBounds != null && !transactionComposerBounds.isEmpty();
+            (recentCachedDraft(draft) ||
+             (transactionComposerBounds != null && !transactionComposerBounds.isEmpty()));
     }
 
     private void dispatchCheckedSend(boolean modelVerified, int retry) {
