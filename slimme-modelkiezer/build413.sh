@@ -2,7 +2,7 @@
 set -euo pipefail
 
 apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends curl unzip ca-certificates openjdk-21-jdk-headless python3 git
+DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends curl unzip ca-certificates openjdk-21-jdk-headless python3 git binutils
 
 rm -rf /workspace /opt/android-sdk /opt/gradle-8.10.2 /tmp/src.zip /tmp/cmdline.zip /tmp/gradle.zip
 mkdir -p /workspace /opt/android-sdk/cmdline-tools
@@ -34,46 +34,52 @@ export CM_KEY_PASSWORD="$SLIM_KEY_PASSWORD"
 cd "$SRC/slimme-apk-build-406/android"
 sed -i 's/androidx.core:core:1.15.0/androidx.core:core:1.0.2/g' app/build.gradle
 printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
+
 export GRADLE_USER_HOME=/tmp/gradle-home-413
 rm -rf "$GRADLE_USER_HOME"
 mkdir -p "$GRADLE_USER_HOME"
-printf 'org.gradle.jvmargs=-Xmx512m -XX:MaxMetaspaceSize=192m -Dfile.encoding=UTF-8\norg.gradle.workers.max=1\norg.gradle.parallel=false\nandroid.useAndroidX=true\n' > gradle.properties
+printf 'org.gradle.jvmargs=-Xmx384m -XX:MaxMetaspaceSize=160m -Dfile.encoding=UTF-8\norg.gradle.workers.max=1\norg.gradle.parallel=false\nandroid.useAndroidX=true\n' > gradle.properties
 cp gradle.properties "$GRADLE_USER_HOME/gradle.properties"
-export JAVA_TOOL_OPTIONS='-Xmx512m -XX:MaxMetaspaceSize=192m -Dfile.encoding=UTF-8'
+export JAVA_TOOL_OPTIONS='-Xmx384m -XX:MaxMetaspaceSize=160m -Dfile.encoding=UTF-8'
 
-/opt/gradle-8.10.2/bin/gradle --no-daemon --max-workers=1 -Dorg.gradle.jvmargs='-Xmx640m -XX:MaxMetaspaceSize=192m -Dfile.encoding=UTF-8' -PslimBuildNumber=413 :app:assembleDebug
+/opt/gradle-8.10.2/bin/gradle --no-daemon --max-workers=1 \
+  -Dorg.gradle.jvmargs='-Xmx384m -XX:MaxMetaspaceSize=160m -Dfile.encoding=UTF-8' \
+  -PslimBuildNumber=413 :app:assembleDebug
 
-mkdir -p /srv
+mkdir -p /srv /tmp/apkverify
 APK=/srv/Slimme-Modelkiezer-V2-build-413.apk
 cp app/build/outputs/apk/debug/app-debug.apk "$APK"
+
 CERT="$(/opt/android-sdk/build-tools/35.0.0/apksigner verify --print-certs "$APK" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1 | tr -d ':' | tr '[:lower:]' '[:upper:]')"
 echo "BUILD413_CERT=$CERT"
 test "$CERT" = 'A94493DD75717D029440396FE018933F6D808623EE371AD9630D76A2E07F9078'
+
 SHA="$(sha256sum "$APK" | cut -d' ' -f1)"
 echo "BUILD413_SHA256=$SHA"
-DEX_TEXT="$(for f in $(unzip -Z1 "$OUT" | grep -E '^classes[0-9]*\.dex
-for MARKER in ACCESSIBILITY_SERVICE_READY_OCR_BUILD413 BUILD413_SCREEN_MENU_OCR_FAILED BUILD413_MODEL_TAP_ACCEPTED_VERIFY_CAPTURE_FAILED; do
-  if printf '%s' "$DEX_TEXT" | grep -Fq "$MARKER"; then
-    echo "BUILD413_APK_MARKER_OK=$MARKER"
-  else
-    echo "BUILD413_APK_MARKER_MISSING=$MARKER"
-    exit 41
-  fi
-done
-CATBOX="$(curl -fsS --retry 5 -F 'reqtype=fileupload' -F "fileToUpload=@$APK" https://catbox.moe/user/api.php || true)"
-echo "BUILD413_CATBOX=$CATBOX"
 
-exec python3 -m http.server "${PORT:-8080}" --bind 0.0.0.0 --directory /srv
-); do unzip -p "$OUT" "$f" | strings; done || true)"
-for MARKER in ACCESSIBILITY_SERVICE_READY_OCR_BUILD413 BUILD413_SCREEN_MENU_OCR_FAILED BUILD413_MODEL_TAP_ACCEPTED_VERIFY_CAPTURE_FAILED; do
-  if printf '%s' "$DEX_TEXT" | grep -Fq "$MARKER"; then
+cd /tmp/apkverify
+unzip -q "$APK" 'classes*.dex'
+for MARKER in \
+  ACCESSIBILITY_SERVICE_READY_OCR_BUILD413 \
+  BUILD413_SCREEN_MENU_OCR_FAILED \
+  BUILD413_MODEL_TAP_ACCEPTED_VERIFY_CAPTURE_FAILED
+do
+  FOUND=0
+  for DEX in classes*.dex; do
+    if strings "$DEX" | grep -Fq "$MARKER"; then
+      FOUND=1
+      break
+    fi
+  done
+  if [ "$FOUND" = "1" ]; then
     echo "BUILD413_APK_MARKER_OK=$MARKER"
   else
     echo "BUILD413_APK_MARKER_MISSING=$MARKER"
     exit 41
   fi
 done
-CATBOX="$(curl -fsS --retry 5 -F 'reqtype=fileupload' -F "fileToUpload=@$APK" https://catbox.moe/user/api.php || true)"
+
+CATBOX="$(curl -fsS --retry 3 -F 'reqtype=fileupload' -F "fileToUpload=@$APK" https://catbox.moe/user/api.php || true)"
 echo "BUILD413_CATBOX=$CATBOX"
 
 exec python3 -m http.server "${PORT:-8080}" --bind 0.0.0.0 --directory /srv
