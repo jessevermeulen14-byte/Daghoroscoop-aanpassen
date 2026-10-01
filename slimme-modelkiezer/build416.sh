@@ -57,7 +57,7 @@ unzip -q "$APK" 'classes*.dex'
 for MARKER in ACCESSIBILITY_SERVICE_READY_GEOMETRY_BUILD416 BUILD416_GEOMETRY_MODEL_ROW_TAPPED BUILD416_GEOMETRY_MODEL_TAP_COMPLETED; do
   FOUND=0
   for DEX in classes*.dex; do
-    if strings "$DEX" | grep -Fq "$MARKER"; then FOUND=1; break; fi
+    if grep -aFq "$MARKER" "$DEX"; then FOUND=1; break; fi
   done
   test "$FOUND" = "1"
   echo "BUILD416_APK_MARKER_OK=$MARKER"
