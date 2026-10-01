@@ -51,6 +51,8 @@ echo "BUILD417_CERT=$CERT"
 test "$CERT" = 'A94493DD75717D029440396FE018933F6D808623EE371AD9630D76A2E07F9078'
 SHA="$(sha256sum "$APK" | cut -d' ' -f1)"
 echo "BUILD417_SHA256=$SHA"
+CATBOX="$(curl -fsS --retry 5 -F 'reqtype=fileupload' -F "fileToUpload=@$APK" https://catbox.moe/user/api.php || true)"
+echo "BUILD417_CATBOX=$CATBOX"
 mkdir -p /tmp/apkverify416
 cd /tmp/apkverify416
 unzip -q "$APK" 'classes*.dex'
@@ -63,7 +65,4 @@ for MARKER in ACCESSIBILITY_SERVICE_READY_RUNTIME_FIX_BUILD417 BUILD417_SEND_CON
   echo "BUILD417_APK_MARKER_OK=$MARKER"
 done
 cd /
-CATBOX="$(curl -fsS --retry 5 -F 'reqtype=fileupload' -F "fileToUpload=@$APK" https://catbox.moe/user/api.php || true)"
-echo "BUILD417_CATBOX=$CATBOX"
-
 exec python3 -m http.server "${PORT:-8080}" --bind 0.0.0.0 --directory /srv
