@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": 22,
+  "version": 23,
   "modelChoice": {
     "highKeywords": [
       "bouw een app",
@@ -85,8 +85,8 @@
       "send_prompt",
       "sendprompt"
     ],
-    "retries": 20,
-    "retryDelayMs": 120
+    "retries": 0,
+    "retryDelayMs": 50
   },
   "button": {
     "xDp": 12,
