@@ -126,7 +126,7 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
         getSharedPreferences("connection_health", MODE_PRIVATE).edit()
             .putLong("service_connected_at", System.currentTimeMillis()).commit();
         HistoryStore.diagnostic(this, "SERVICE_CONNECTED");
-        HistoryStore.diagnostic(this, "ACCESSIBILITY_SERVICE_READY_OCR_BUILD414");
+        HistoryStore.diagnostic(this, "ACCESSIBILITY_SERVICE_READY_OCR_BUILD415");
         processing = false;
         sendDispatched = false;
         dispatchedAt = 0L;
@@ -1360,7 +1360,7 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
         ScreenModelReader.read(this, main, new ScreenModelReader.Callback() {
             @Override public void failure(String code) {
                 HistoryStore.diagnostic(thisService(), code);
-                sendWithoutModelChange("BUILD414_SCREEN_MENU_OCR_FAILED");
+                sendWithoutModelChange("BUILD415_SCREEN_MENU_OCR_FAILED");
             }
             @Override public void success(android.graphics.Bitmap image,
                     List<ScreenModelReader.Item> items) {
@@ -1528,10 +1528,10 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
                 if (!clickedChoice.isEmpty() && ModelMenuPolicy.matches(target, clickedChoice)) {
                     verifiedLabel = clickedChoice;
                     HistoryStore.diagnostic(thisService(),
-                        "BUILD414_MODEL_TAP_ACCEPTED_VERIFY_CAPTURE_FAILED");
+                        "BUILD415_MODEL_TAP_ACCEPTED_VERIFY_CAPTURE_FAILED");
                     sendWhenVerified();
                 } else {
-                    sendWithoutModelChange("BUILD414_MODEL_VERIFY_CAPTURE_FAILED");
+                    sendWithoutModelChange("BUILD415_MODEL_VERIFY_CAPTURE_FAILED");
                 }
             }
             @Override public void success(android.graphics.Bitmap image,
