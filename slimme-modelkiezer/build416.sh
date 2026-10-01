@@ -2,7 +2,7 @@
 set -euo pipefail
 
 apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends curl unzip ca-certificates openjdk-21-jdk-headless python3 git
+DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends curl unzip ca-certificates openjdk-21-jdk-headless python3 git binutils
 
 rm -rf /workspace /opt/android-sdk /opt/gradle-8.10.2 /tmp/src.zip /tmp/cmdline.zip /tmp/gradle.zip
 mkdir -p /workspace /opt/android-sdk/cmdline-tools
@@ -41,7 +41,7 @@ printf 'org.gradle.jvmargs=-Xmx512m -XX:MaxMetaspaceSize=192m -Dfile.encoding=UT
 cp gradle.properties "$GRADLE_USER_HOME/gradle.properties"
 export JAVA_TOOL_OPTIONS='-Xmx512m -XX:MaxMetaspaceSize=192m -Dfile.encoding=UTF-8'
 
-/opt/gradle-8.10.2/bin/gradle --no-daemon --max-workers=1 -Dorg.gradle.jvmargs='-Xmx640m -XX:MaxMetaspaceSize=192m -Dfile.encoding=UTF-8' -PslimBuildNumber=416 :app:assembleDebug
+/opt/gradle-8.10.2/bin/gradle --no-daemon --max-workers=1 -Dorg.gradle.jvmargs='-Xmx512m -XX:MaxMetaspaceSize=192m -Dfile.encoding=UTF-8' -PslimBuildNumber=416 :app:assembleDebug
 
 mkdir -p /srv
 APK=/srv/Slimme-Modelkiezer-V2-build-416.apk
@@ -53,7 +53,7 @@ SHA="$(sha256sum "$APK" | cut -d' ' -f1)"
 echo "BUILD416_SHA256=$SHA"
 mkdir -p /tmp/apkverify416
 cd /tmp/apkverify416
-unzip -q "$OUT" 'classes*.dex'
+unzip -q "$APK" 'classes*.dex'
 for MARKER in ACCESSIBILITY_SERVICE_READY_GEOMETRY_BUILD416 BUILD416_GEOMETRY_MODEL_ROW_TAPPED BUILD416_GEOMETRY_MODEL_TAP_COMPLETED; do
   FOUND=0
   for DEX in classes*.dex; do
