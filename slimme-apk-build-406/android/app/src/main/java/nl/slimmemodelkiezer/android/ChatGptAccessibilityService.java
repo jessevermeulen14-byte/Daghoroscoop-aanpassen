@@ -96,6 +96,9 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
     private long lastChatEventAt = 0L;
     private int pickerAttempts = 0;
     private boolean headerTapAttempted = false;
+    // Build 418: standard ChatGPT chats can hide the model selector from the
+    // top bar while exposing a reasoning/model control in the composer toolbar.
+    private boolean composerModeAttempted = false;
     private boolean keyboardDismissAttempted = false;
     private boolean sendDispatched = false;
     private long dispatchedAt = 0L;
@@ -126,7 +129,7 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
         getSharedPreferences("connection_health", MODE_PRIVATE).edit()
             .putLong("service_connected_at", System.currentTimeMillis()).commit();
         HistoryStore.diagnostic(this, "SERVICE_CONNECTED");
-        HistoryStore.diagnostic(this, "ACCESSIBILITY_SERVICE_READY_RUNTIME_FIX_BUILD417");
+        HistoryStore.diagnostic(this, "ACCESSIBILITY_SERVICE_READY_COMPOSER_MODE_BUILD418");
         processing = false;
         sendDispatched = false;
         dispatchedAt = 0L;
@@ -650,10 +653,12 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
     }
 
     private void showIndependentButton() {
-        // Accessibility events can arrive while the model sheet is open.
-        // Recreating this overlay covers the Luna row and defeats screen OCR.
+        // Build 419: keep the SLIM control visible while model selection is in progress.
+        // It is already made non-clickable by onOverlayTapped(), so there is no need
+        // to destroy and recreate it. Removing it here caused the user's button to
+        // disappear immediately after the first tap when ChatGPT opened/probed a mode sheet.
         if (menuInspection) {
-            removeFloatingButton();
+            if (floatingOverlay != null) applyOverlayAppearance(floatingOverlay);
             return;
         }
         // Once an actual ChatGPT text event has been received, keyboard focus
@@ -951,6 +956,7 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
         overflowAttempted = false;
         configureAttempted = false;
         headerTapAttempted = false;
+        composerModeAttempted = false;
         keyboardDismissAttempted = false;
         seenChoices = "";
         verifiedLabel = "";
@@ -1024,24 +1030,49 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
                     return;
                 }
             }
+            // Build 418: on the current normal-chat UI the model/reasoning
+            // control is in the composer row (the dial-like button visible next
+            // to microphone/send), not in the title bar. Try that first.
+            if (!composerModeAttempted && SupportedAiApps.CHATGPT.equals(activePackage)) {
+                composerModeAttempted = true;
+                AccessibilityNodeInfo composerMode = findComposerModeControl(nodes);
+                if (composerMode != null && (clickUp(composerMode) || tapComposerControl(composerMode))) {
+                    HistoryStore.diagnostic(this, "BUILD418_COMPOSER_MODE_CONTROL_DISPATCHED");
+                    menuInspection = true;
+                    // Build 419: keep the visible SLIM status control in place.
+                    // onOverlayTapped() has already disabled it during processing.
+                    if (floatingOverlay != null) applyOverlayAppearance(floatingOverlay);
+                    main.postDelayed(this::selectFromMenu, 320L);
+                    return;
+                }
+                HistoryStore.diagnostic(this, "BUILD418_COMPOSER_MODE_CONTROL_NOT_EXPOSED");
+            }
             if (!headerTapAttempted && SupportedAiApps.CHATGPT.equals(activePackage)) {
                 headerTapAttempted = true;
-                AccessibilityNodeInfo workHeader = findModelHeaderFallback(nodes);
-                if (workHeader != null && (clickUp(workHeader) || tapVisibleNode(workHeader))) {
-                    HistoryStore.diagnostic(this, "MODEL_WORK_HEADER_ACTION_DISPATCHED");
-                    // The floating overlay can cover the Luna row in the sheet.
-                    // The guarded native Send interceptor remains active.
+                // Build 420: keep Work and normal chat strictly separated.
+                // A normal chat must never treat the Work title as its model selector.
+                boolean workSurface = isWorkSurface(nodes);
+                AccessibilityNodeInfo modelHeader = workSurface
+                    ? findWorkHeader(nodes)
+                    : findNormalChatModelHeader(nodes);
+                if (modelHeader != null && (clickUp(modelHeader) || tapVisibleNode(modelHeader))) {
+                    HistoryStore.diagnostic(this, workSurface
+                        ? "BUILD420_WORK_MODEL_HEADER_DISPATCHED"
+                        : "BUILD420_NORMAL_CHAT_MODEL_HEADER_DISPATCHED");
                     menuInspection = true;
-                    removeFloatingButton();
+                    if (floatingOverlay != null) applyOverlayAppearance(floatingOverlay);
                     main.postDelayed(this::selectFromMenu, 380L);
                     return;
                 }
-                HistoryStore.diagnostic(this, "MODEL_WORK_HEADER_UNAVAILABLE");
+                HistoryStore.diagnostic(this, workSurface
+                    ? "BUILD420_WORK_MODEL_HEADER_UNAVAILABLE"
+                    : "BUILD420_NORMAL_CHAT_MODEL_HEADER_UNAVAILABLE");
             }
             if (!screenHeaderAttempted && SupportedAiApps.CHATGPT.equals(activePackage)) {
                 screenHeaderAttempted = true;
                 menuInspection = true;
-                removeFloatingButton();
+                // Build 419: keep SLIM visible while the screen probe runs.
+                if (floatingOverlay != null) applyOverlayAppearance(floatingOverlay);
                 inspectScreenHeader();
                 return;
             }
@@ -2158,30 +2189,126 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
         }
         return null;
     }
-    /** The Work conversation header can open Configureren while exposing no model name. */
+    private AccessibilityNodeInfo findComposerModeControl(List<AccessibilityNodeInfo> nodes) {
+        AccessibilityNodeInfo geometryBest = null;
+        float geometryScore = Float.MAX_VALUE;
+        android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
+        int maxSize = Math.round(76f * dm.density);
+        int minSize = Math.round(20f * dm.density);
+        int targetFromRight = Math.round(84f * dm.density);
+        int tolerance = Math.round(42f * dm.density);
+        int lowerBand = transactionComposerBounds == null ? 0 :
+            transactionComposerBounds.bottom - Math.round(10f * dm.density);
+
+        for (AccessibilityNodeInfo n : nodes) {
+            if (n == null || !n.isVisibleToUser() || !n.isEnabled() || n.isEditable() ||
+                    n.getPackageName() == null || !activePackage.contentEquals(n.getPackageName()))
+                continue;
+            AccessibilityNodeInfo c = clickableAncestor(n);
+            if (c == null) continue;
+            String value = label(c);
+            String id = c.getViewIdResourceName() == null ? "" :
+                c.getViewIdResourceName().toLowerCase(Locale.ROOT);
+
+            boolean excluded = value.contains("microphone") || value.contains("microfoon") ||
+                value.contains("voice") || value.contains("spraak") || value.contains("send") ||
+                value.contains("verzend") || value.contains("attach") || value.contains("bijlage") ||
+                value.contains("plus") || value.contains("expand") || value.contains("uitvouw");
+            if (excluded) continue;
+
+            boolean semantic = value.contains("reason") || value.contains("thinking") ||
+                value.contains("think") || value.contains("denk") || value.contains("model") ||
+                value.contains("mode") || id.contains("reason") || id.contains("think") ||
+                id.contains("model") || id.contains("mode");
+            if (semantic) return c;
+
+            if (transactionComposerBounds == null || transactionComposerBounds.isEmpty()) continue;
+            Rect b = new Rect();
+            c.getBoundsInScreen(b);
+            if (b.isEmpty() || b.width() < minSize || b.height() < minSize ||
+                    b.width() > maxSize || b.height() > maxSize) continue;
+            int fromRight = transactionComposerBounds.right - b.centerX();
+            if (Math.abs(fromRight - targetFromRight) > tolerance) continue;
+            // Composer action controls sit on the lower toolbar. Allow a small
+            // amount below the editor bounds because Compose often reports only
+            // the editable text region, not the full rounded container.
+            if (b.centerY() < lowerBand - Math.round(56f * dm.density) ||
+                    b.centerY() > transactionComposerBounds.bottom + Math.round(70f * dm.density))
+                continue;
+            float score = Math.abs(fromRight - targetFromRight);
+            if (score < geometryScore) {
+                geometryScore = score;
+                geometryBest = c;
+            }
+        }
+        if (geometryBest != null)
+            HistoryStore.diagnostic(this, "BUILD418_COMPOSER_MODE_FOUND_BY_GEOMETRY");
+        return geometryBest;
+    }
+
+    private boolean tapComposerControl(AccessibilityNodeInfo n) {
+        if (n == null || !n.isVisibleToUser() || !n.isEnabled()) return false;
+        Rect b = new Rect();
+        n.getBoundsInScreen(b);
+        if (b.isEmpty()) return false;
+        Path p = new Path();
+        p.moveTo(b.exactCenterX(), b.exactCenterY());
+        return dispatchGesture(new GestureDescription.Builder()
+            .addStroke(new GestureDescription.StrokeDescription(p, 0, 65)).build(),
+            null, main);
+    }
+
+    /** True only when the current ChatGPT top bar explicitly identifies Work. */
+    private boolean isWorkSurface(List<AccessibilityNodeInfo> nodes) {
+        for (AccessibilityNodeInfo n : nodes) {
+            if (n != null && n.isVisibleToUser() && !n.isEditable() && isTopBarNode(n) &&
+                    n.getPackageName() != null && activePackage.contentEquals(n.getPackageName()) &&
+                    label(n).equals("work")) return true;
+        }
+        return false;
+    }
+
+    /** Work keeps its own header route. Normal chat never calls this method. */
     private AccessibilityNodeInfo findWorkHeader(List<AccessibilityNodeInfo> nodes) {
         for (AccessibilityNodeInfo n : nodes) {
             if (n.isVisibleToUser() && !n.isEditable() && isTopBarNode(n) &&
-                    label(n).equals("work")) return n;
+                    n.getPackageName() != null && activePackage.contentEquals(n.getPackageName()) &&
+                    label(n).equals("work") && clickable(n)) return n;
         }
         return null;
     }
-    /** A Compose header may have a generic product label instead of a model label. */
-    private AccessibilityNodeInfo findModelHeaderFallback(List<AccessibilityNodeInfo> nodes) {
+
+    /**
+     * Normal-chat model header fallback. Explicitly rejects Work. The preferred
+     * path remains the composer reasoning/model control; this is only a fallback.
+     */
+    private AccessibilityNodeInfo findNormalChatModelHeader(List<AccessibilityNodeInfo> nodes) {
         AccessibilityNodeInfo generic = null;
         for (AccessibilityNodeInfo n : nodes) {
             if (!n.isVisibleToUser() || n.isEditable() || !isTopBarNode(n) || !clickable(n) ||
-                n.getPackageName() == null || !activePackage.contentEquals(n.getPackageName()))
+                    n.getPackageName() == null || !activePackage.contentEquals(n.getPackageName()))
                 continue;
             String value = label(n);
+            if (value.equals("work")) continue;
             String id = n.getViewIdResourceName() == null ? "" :
                 n.getViewIdResourceName().toLowerCase(Locale.ROOT);
-            if (value.equals("work") || value.equals("model") ||
+
+            boolean explicitModelControl =
+                value.equals("model") ||
                 value.contains("model kiezen") || value.contains("choose model") ||
                 value.contains("change model") || value.contains("switch model") ||
-                id.contains("model") || id.contains("header_model")) return n;
+                value.contains("reasoning") || value.contains("thinking") ||
+                value.contains("instant") || value.contains("medium") ||
+                value.contains("high") || value.contains("extended") ||
+                value.contains("6 luna") || value.contains("6 sol") ||
+                value.contains("6 astra") ||
+                id.contains("model") || id.contains("reason") || id.contains("thinking");
+
+            if (explicitModelControl) return n;
+
+            // Generic ChatGPT header is allowed only as a last normal-chat fallback.
             if (generic == null && (value.equals("chatgpt") || value.equals("chatgpt 5") ||
-                value.equals("gpt-5") || value.equals("gpt 5"))) generic = n;
+                    value.equals("gpt-5") || value.equals("gpt 5"))) generic = n;
         }
         return generic;
     }
