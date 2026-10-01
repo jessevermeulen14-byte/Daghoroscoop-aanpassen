@@ -126,7 +126,7 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
         getSharedPreferences("connection_health", MODE_PRIVATE).edit()
             .putLong("service_connected_at", System.currentTimeMillis()).commit();
         HistoryStore.diagnostic(this, "SERVICE_CONNECTED");
-        HistoryStore.diagnostic(this, "ACCESSIBILITY_SERVICE_READY_TRANSACTION_BUILD411");
+        HistoryStore.diagnostic(this, "ACCESSIBILITY_SERVICE_READY_OCR_BUILD412");
         processing = false;
         sendDispatched = false;
         dispatchedAt = 0L;
@@ -1360,7 +1360,7 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
         ScreenModelReader.read(this, main, new ScreenModelReader.Callback() {
             @Override public void failure(String code) {
                 HistoryStore.diagnostic(thisService(), code);
-                fail("Modelmenu niet leesbaar. Je bericht staat nog klaar.");
+                sendWithoutModelChange("BUILD412_SCREEN_MENU_OCR_FAILED");
             }
             @Override public void success(android.graphics.Bitmap image,
                     List<ScreenModelReader.Item> items) {
@@ -1525,7 +1525,14 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
         ScreenModelReader.read(this, main, new ScreenModelReader.Callback() {
             @Override public void failure(String code) {
                 HistoryStore.diagnostic(thisService(), code);
-                fail("Modelkeuze niet te controleren. Je bericht staat nog klaar.");
+                if (!clickedChoice.isEmpty() && ModelMenuPolicy.matches(target, clickedChoice)) {
+                    verifiedLabel = clickedChoice;
+                    HistoryStore.diagnostic(thisService(),
+                        "BUILD412_MODEL_TAP_ACCEPTED_VERIFY_CAPTURE_FAILED");
+                    sendWhenVerified();
+                } else {
+                    sendWithoutModelChange("BUILD412_MODEL_VERIFY_CAPTURE_FAILED");
+                }
             }
             @Override public void success(android.graphics.Bitmap image,
                     List<ScreenModelReader.Item> items) {
@@ -1870,6 +1877,7 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
     }
 
     private void fail(String text) {
+        boolean closeModelSheet = menuInspection;
         if (startedAt > 0L) {
             HistoryStore.add(this, target, verifiedLabel, text,
                 SystemClock.uptimeMillis() - startedAt, seenChoices, clickedChoice);
@@ -1883,13 +1891,19 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
         transactionDraft = "";
         transactionComposerBounds = null;
         main.removeCallbacksAndMessages(null);
-        main.postDelayed(visibilityPoll, 1200L);
-        // Keep the accessible button in place on failure. The 250 ms cooldown
-        // prevents rapid retries without making it vanish from the composer.
+        if (closeModelSheet) {
+            try { performGlobalAction(GLOBAL_ACTION_BACK); } catch (RuntimeException ignored) { }
+        }
+        // Build 412: a failed model attempt must never strand the user without SLIM.
         bypassUntil = SystemClock.uptimeMillis() + 250L;
         if (chatForeground && sendOverlay != null) applyOverlayAppearance(sendOverlay);
         Toast.makeText(this, text, Toast.LENGTH_LONG).show();
-        main.postDelayed(this::refreshOverlay, 300L);
+        main.postDelayed(() -> {
+            recoverVisibleAiWindow();
+            refreshOverlay();
+            if (floatingOverlay == null && chatForeground) showIndependentButton();
+        }, 300L);
+        main.postDelayed(visibilityPoll, 650L);
     }
 
     private AccessibilityNodeInfo editor(List<AccessibilityNodeInfo> nodes) {
