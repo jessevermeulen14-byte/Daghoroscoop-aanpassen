@@ -117,7 +117,7 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
         getSharedPreferences("connection_health", MODE_PRIVATE).edit()
             .putLong("service_connected_at", System.currentTimeMillis()).commit();
         HistoryStore.diagnostic(this, "SERVICE_CONNECTED");
-        HistoryStore.diagnostic(this, "ACCESSIBILITY_SERVICE_READY_TRANSACTION_SEND_BUILD408");
+        HistoryStore.diagnostic(this, "ACCESSIBILITY_SERVICE_READY_CAPTURE_WATCHDOG_BUILD409");
         processing = false;
         sendDispatched = false;
         dispatchedAt = 0L;
@@ -924,6 +924,17 @@ public final class ChatGptAccessibilityService extends AccessibilityService {
         // Opening Work and a Compose sheet can take several seconds on a real device.
         deadline = SystemClock.uptimeMillis() +
             RemoteRules.current().selectionTimeoutMs;
+        final long transactionDeadline = deadline;
+        // Build 409: a screenshot callback must never be able to hide SLIM forever.
+        // At the transaction deadline, abandon model selection and use the already
+        // verified draft/composer snapshot to attempt one send with the current model.
+        main.postDelayed(() -> {
+            if (processing && deadline == transactionDeadline) {
+                HistoryStore.diagnostic(this, "TRANSACTION_WATCHDOG_FALLBACK_SEND");
+                menuInspection = false;
+                sendWithoutModelChange("TRANSACTION_WATCHDOG_TIMEOUT");
+            }
+        }, RemoteRules.current().selectionTimeoutMs + 250L);
         main.removeCallbacks(visibilityPoll);
         main.postDelayed(visibilityPoll, 1200L);
         // ChatGPT is the primary supported provider. Its picker is recognized
